@@ -210,9 +210,9 @@ fun SubsetText(
  *
  * This function:
  * 1. Fetches and parses the CSS to get font face definitions
- * 2. Analyzes each character to determine which font slice it needs
+ * 2. Analyzes the text to produce font intervals (runs of text using the same font)
  * 3. Loads the necessary font slices
- * 4. Builds an AnnotatedString where each character span gets its own FontFamily
+ * 4. Builds an AnnotatedString where each interval gets its FontFamily
  *
  * @param cssUrl The URL of the CSS file containing @font-face rules.
  * @param text The text to render.
@@ -228,7 +228,7 @@ private fun rememberSubsetAnnotatedString(
     requestedStyle: FontStyle?
 ): AnnotatedString {
     // Parse CSS and cache the font faces
-    val fontFaces by produceState<List<FontFace>>(emptyList(), cssUrl) {
+    val fontFaces by produceState(emptyList(), cssUrl) {
         try {
             value = getFontCssDescription(cssUrl)
         } catch (e: Exception) {
@@ -247,23 +247,35 @@ private fun rememberSubsetAnnotatedString(
             }
     }
 
-    // Map each character to its font descriptor
-    val charToDescriptor = remember(text, descriptors) {
-        buildCharToDescriptorMap(text, descriptors)
+    // Analyze text to produce intervals - Amortized O(N) time due to locality hint, O(I) space
+    val textIntervals = remember(text, descriptors) {
+        if (text.isEmpty() || descriptors.isEmpty()) {
+            emptyList()
+        } else {
+            buildList {
+                var startIndex = 0
+                var currentDescriptor = findDescriptor(text[0], descriptors)
+
+                for (i in 1 until text.length) {
+                    val nextDescriptor = findDescriptor(text[i], descriptors, currentDescriptor)
+                    if (nextDescriptor != currentDescriptor) {
+                        add(TextInterval(startIndex, i, currentDescriptor))
+                        startIndex = i
+                        currentDescriptor = nextDescriptor
+                    }
+                }
+                add(TextInterval(startIndex, text.length, currentDescriptor))
+            }
+        }
     }
 
-    // Load fonts for each unique descriptor
+    // Load fonts for each unique descriptor found in intervals
     var descriptorToFontFamily by remember {
         mutableStateOf<Map<ParsedFontDescriptor, FontFamily>>(emptyMap())
     }
 
-    LaunchedEffect(charToDescriptor) {
-        if (charToDescriptor.isEmpty()) {
-            descriptorToFontFamily = emptyMap()
-            return@LaunchedEffect
-        }
-
-        val uniqueDescriptors = charToDescriptor.values.toSet()
+    LaunchedEffect(textIntervals) {
+        val uniqueDescriptors = textIntervals.mapNotNull { it.descriptor }.toSet()
         val missingDescriptors = uniqueDescriptors.filter { it !in descriptorToFontFamily }
 
         missingDescriptors.forEach { descriptor ->
@@ -271,7 +283,6 @@ private fun rememberSubsetAnnotatedString(
                 try {
                     val fontData = FontSliceCache.getOrLoad(descriptor.url)
                     val font = createFontFromData(fontData, descriptor)
-                    // Each FontFamily contains ONLY ONE font slice
                     descriptorToFontFamily += (descriptor to FontFamily(font))
                 } catch (e: Exception) {
                     println("ERROR: Failed to load font from ${descriptor.url}: ${e.message}")
@@ -280,45 +291,24 @@ private fun rememberSubsetAnnotatedString(
         }
     }
 
-    // Build the annotated string
-    return remember(text, charToDescriptor, descriptorToFontFamily) {
+    // Build the annotated string - O(I) time
+    return remember(text, textIntervals, descriptorToFontFamily) {
         buildAnnotatedString {
-            if (descriptorToFontFamily.isEmpty()) {
-                // No fonts loaded yet, just append plain text
+            if (textIntervals.isEmpty() || descriptorToFontFamily.isEmpty()) {
                 append(text)
                 return@buildAnnotatedString
             }
 
-            var currentIndex = 0
-            while (currentIndex < text.length) {
-                val char = text[currentIndex]
-                val descriptor = charToDescriptor[char]
-                val fontFamily = descriptor?.let { descriptorToFontFamily[it] }
+            for (interval in textIntervals) {
+                val substring = text.substring(interval.start, interval.end)
+                val fontFamily = interval.descriptor?.let { descriptorToFontFamily[it] }
 
                 if (fontFamily != null) {
-                    // Find consecutive characters with the same font
-                    var endIndex = currentIndex + 1
-                    while (endIndex < text.length && charToDescriptor[text[endIndex]] == descriptor) {
-                        endIndex++
-                    }
-
-                    // Apply font to this span
                     withStyle(SpanStyle(fontFamily = fontFamily)) {
-                        append(text.substring(currentIndex, endIndex))
+                        append(substring)
                     }
-
-                    currentIndex = endIndex
                 } else {
-                    // No font for this character, use default
-                    // Find consecutive characters without fonts
-                    var endIndex = currentIndex + 1
-                    while (endIndex < text.length && charToDescriptor[text[endIndex]] == null) {
-                        endIndex++
-                    }
-
-                    append(text.substring(currentIndex, endIndex))
-
-                    currentIndex = endIndex
+                    append(substring)
                 }
             }
         }
@@ -326,34 +316,29 @@ private fun rememberSubsetAnnotatedString(
 }
 
 /**
- * Builds a map from characters to their font descriptors based on unicode-range matching.
- *
- * @param text The text to analyze.
- * @param descriptors The list of available font descriptors.
- * @return A map from Char to ParsedFontDescriptor.
+ * Represents a contiguous run of text that uses the same font descriptor.
  */
-private fun buildCharToDescriptorMap(
-    text: String,
-    descriptors: List<ParsedFontDescriptor>
-): Map<Char, ParsedFontDescriptor> {
-    if (text.isEmpty() || descriptors.isEmpty()) {
-        return emptyMap()
+private data class TextInterval(
+    val start: Int,
+    val end: Int,
+    val descriptor: ParsedFontDescriptor?
+)
+
+/**
+ * Finds the first descriptor whose unicode-range includes this character.
+ *
+ * Uses an optional [hint] (typically the last used descriptor) to optimize lookup time
+ * for sequential characters in the same script range from O(D) to O(1).
+ */
+private fun findDescriptor(
+    char: Char,
+    descriptors: List<ParsedFontDescriptor>,
+    hint: ParsedFontDescriptor? = null
+): ParsedFontDescriptor? {
+    if (hint != null && (hint.unicodeRanges.isEmpty() || isCharInRanges(char, hint.unicodeRanges))) {
+        return hint
     }
-
-    val map = mutableMapOf<Char, ParsedFontDescriptor>()
-    val uniqueChars = text.toSet()
-
-    for (char in uniqueChars) {
-        // Find the first descriptor whose unicode-range includes this character
-        val descriptor = descriptors.firstOrNull { descriptor ->
-            // If no unicode-range, it covers all characters
-            descriptor.unicodeRanges.isEmpty() || isCharInRanges(char, descriptor.unicodeRanges)
-        }
-
-        if (descriptor != null) {
-            map[char] = descriptor
-        }
+    return descriptors.firstOrNull { descriptor ->
+        descriptor.unicodeRanges.isEmpty() || isCharInRanges(char, descriptor.unicodeRanges)
     }
-
-    return map
 }
