@@ -61,7 +61,7 @@ import kotlinx.coroutines.launch
  * @param fontSize The font size of the text.
  * @param fontStyle The font style (normal, italic).
  * @param fontWeight The font weight (normal, bold, etc.).
- * @param fontFamily Optional FontFamily override. If provided, disables font subsetting.
+ * @param fontFamily Optional FontFamily to use as a fallback for characters not covered by subset fonts.
  * @param letterSpacing The spacing between characters.
  * @param textDecoration The decoration to apply (underline, strikethrough).
  * @param textAlign The alignment of the text.
@@ -81,7 +81,7 @@ fun SubsetFontScope.SubsetText(
     fontSize: TextUnit = TextUnit.Unspecified,
     fontStyle: FontStyle? = null,
     fontWeight: FontWeight? = null,
-    fontFamily: FontFamily? = null,
+    fontFamily: FontFamily? = this.fontFamily,
     letterSpacing: TextUnit = TextUnit.Unspecified,
     textDecoration: TextDecoration? = null,
     textAlign: TextAlign? = null,
@@ -142,7 +142,7 @@ fun SubsetFontScope.SubsetText(
  * @param fontSize The font size of the text.
  * @param fontStyle The font style (normal, italic).
  * @param fontWeight The font weight (normal, bold, etc.).
- * @param fontFamily Optional FontFamily override. If provided, disables font subsetting.
+ * @param fontFamily Optional FontFamily to use as a fallback for characters not covered by subset fonts.
  * @param letterSpacing The spacing between characters.
  * @param textDecoration The decoration to apply (underline, strikethrough).
  * @param textAlign The alignment of the text.
@@ -176,30 +176,6 @@ fun SubsetText(
     style: TextStyle = LocalTextStyle.current,
     cssUrl: String
 ) {
-    // If manual fontFamily override, use standard Text
-    if (fontFamily != null) {
-        Text(
-            text = text,
-            modifier = modifier,
-            color = color,
-            fontSize = fontSize,
-            fontStyle = fontStyle,
-            fontWeight = fontWeight,
-            fontFamily = fontFamily,
-            letterSpacing = letterSpacing,
-            textDecoration = textDecoration,
-            textAlign = textAlign,
-            lineHeight = lineHeight,
-            overflow = overflow,
-            softWrap = softWrap,
-            maxLines = maxLines,
-            minLines = minLines,
-            onTextLayout = onTextLayout,
-            style = style
-        )
-        return
-    }
-
     // Build annotated string with per-character font slices
     val annotatedString = rememberSubsetAnnotatedString(
         cssUrl = cssUrl,
@@ -215,6 +191,7 @@ fun SubsetText(
         fontSize = fontSize,
         fontStyle = fontStyle,
         fontWeight = fontWeight,
+        fontFamily = fontFamily,
         letterSpacing = letterSpacing,
         textDecoration = textDecoration,
         textAlign = textAlign,
@@ -339,9 +316,7 @@ private fun rememberSubsetAnnotatedString(
                         endIndex++
                     }
 
-                    withStyle(SpanStyle(fontFamily = FontFamily.Default)) {
-                        append(text.substring(currentIndex, endIndex))
-                    }
+                    append(text.substring(currentIndex, endIndex))
 
                     currentIndex = endIndex
                 }

@@ -18,6 +18,7 @@ package xyz.hyli.klyph
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.text.font.FontFamily
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 
@@ -40,7 +41,8 @@ import io.ktor.client.request.*
  * @property cssUrl The CSS URL provided by SubsetFontProvider, used by scoped SubsetText calls.
  */
 class SubsetFontScope internal constructor(
-    internal val cssUrl: String
+    internal val cssUrl: String,
+    internal val fontFamily: FontFamily?
 )
 
 /**
@@ -65,9 +67,15 @@ class SubsetFontScope internal constructor(
 @Composable
 fun SubsetFontProvider(
     cssUrl: String,
+    fontFamily: FontFamily? = null,
     content: @Composable SubsetFontScope.() -> Unit
 ) {
-    val scope = remember(cssUrl) { SubsetFontScope(cssUrl) }
+    val scope = remember(cssUrl) {
+        SubsetFontScope(
+            cssUrl = cssUrl,
+            fontFamily = fontFamily
+        )
+    }
     scope.content()
 }
 
