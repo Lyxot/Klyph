@@ -40,6 +40,10 @@ data class UnicodeRange(
     fun contains(codePoint: Int): Boolean {
         return codePoint in start..end
     }
+
+    override fun toString(): String {
+        return "U+${start.toString(16).uppercase()}-${end.toString(16).uppercase()}"
+    }
 }
 
 /**
@@ -128,45 +132,3 @@ fun isCharInRanges(char: Char, ranges: List<UnicodeRange>): Boolean {
     return ranges.any { it.contains(char) }
 }
 
-/**
- * Extracts all unique characters from a text string.
- *
- * @param text The text to analyze.
- * @return A set of unique characters in the text.
- */
-fun getUniqueCharacters(text: String): Set<Char> {
-    return text.toSet()
-}
-
-/**
- * Groups characters by which FontFace they should use based on unicode-range.
- *
- * @param characters The characters to group.
- * @param fontFaces The list of FontFace objects with unicode-range information.
- * @return A map of FontFace to the set of characters it should render.
- */
-fun groupCharactersByFontFace(
-    characters: Set<Char>,
-    fontFaces: List<FontFace>
-): Map<FontFace, Set<Char>> {
-    // Parse unicode ranges for all font faces once
-    val fontFaceRanges = fontFaces.map { fontFace ->
-        fontFace to parseUnicodeRange(fontFace.unicodeRange)
-    }
-
-    val characterGroups = mutableMapOf<FontFace, MutableSet<Char>>()
-
-    for (char in characters) {
-        // Find the first font face whose unicode-range includes this character
-        val matchingFontFace = fontFaceRanges.firstOrNull { (_, ranges) ->
-            // If no unicode-range is specified, it matches all characters
-            ranges.isEmpty() || isCharInRanges(char, ranges)
-        }?.first
-
-        if (matchingFontFace != null) {
-            characterGroups.getOrPut(matchingFontFace) { mutableSetOf() }.add(char)
-        }
-    }
-
-    return characterGroups
-}

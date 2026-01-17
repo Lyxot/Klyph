@@ -16,6 +16,6 @@
 
 package xyz.hyli.klyph
 
-import io.ktor.client.HttpClient
+import io.ktor.client.*
 
-expect val httpClient: HttpClient
+internal expect val httpClient: HttpClient

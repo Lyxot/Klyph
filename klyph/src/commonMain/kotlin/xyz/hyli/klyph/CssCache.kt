@@ -27,50 +27,43 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /**
- * Global cache for loaded font slices with request deduplication.
+ * Global cache for CSS files with request deduplication.
  *
- * This cache stores font file data (as ByteArray) to avoid redundant network
- * requests when the same font slice is needed by multiple composables.
+ * Caches parsed CSS font descriptors to avoid redundant network requests
+ * and parsing when the same CSS URL is used multiple times.
  *
  * **Request Deduplication:**
- * When multiple concurrent requests are made for the same font URL,
- * only one network request is performed and all requests share the result.
- * This prevents duplicate downloads when multiple composables mount simultaneously
- * and request the same font slices.
+ * When multiple concurrent requests are made for the same CSS URL,
+ * only one network request and parse operation is performed, and all
+ * requests share the result. This prevents duplicate work when multiple
+ * composables mount simultaneously.
  *
  * **Thread Safety:**
  * All operations are protected by a mutex to ensure thread-safe access
  * to the cache across multiple coroutines.
- *
- * **Example:**
- * If 10 SubsetText instances all render "你好" and mount at the same time,
- * they will all request the same Chinese font slice. Without deduplication,
- * this would trigger 10 identical network requests. With deduplication,
- * only 1 request is made and all 10 instances share the result.
  */
-object FontSliceCache {
-    private val cache = mutableMapOf<String, Deferred<ByteArray>>()
+object CssCache {
+    private val cache = mutableMapOf<String, Deferred<List<ParsedFontDescriptor>>>()
     private val mutex = Mutex()
     private val _size = MutableStateFlow(0)
 
     /**
-     * The current number of cached font slices.
+     * The current number of cached CSS files.
      */
     val size: StateFlow<Int>
         get() = _size
 
     /**
-     * Gets font data from cache or loads it from the URL if not cached.
+     * Gets parsed CSS font descriptors from cache or fetches and parses if not cached.
      *
      * Implements request deduplication: if multiple concurrent calls request
-     * the same URL, only one network fetch occurs and all callers receive
-     * the same result.
+     * the same CSS URL, only one network fetch and parse occurs.
      *
-     * @param url The URL of the font resource.
-     * @return The font data as ByteArray.
-     * @throws Exception if fetching fails.
+     * @param url The URL of the CSS file.
+     * @return List of ParsedFontDescriptor objects parsed from the CSS.
+     * @throws Exception if fetching or parsing fails.
      */
-    suspend fun getOrLoad(url: String): ByteArray = coroutineScope {
+    suspend fun getOrLoad(url: String): List<ParsedFontDescriptor> = coroutineScope {
         val deferred = mutex.withLock {
             // Check if already in cache or being fetched
             cache[url]?.let { return@withLock it }
@@ -79,7 +72,8 @@ object FontSliceCache {
             async {
                 try {
                     val res = httpClient.get(url)
-                    res.body<ByteArray>()
+                    val body = res.body<String>()
+                    parseCssToDescriptors(body, baseUrl = url)
                 } catch (e: Exception) {
                     // Remove from cache on error so retry is possible
                     mutex.withLock { cache.remove(url) }
@@ -95,25 +89,7 @@ object FontSliceCache {
     }
 
     /**
-     * Preloads multiple font URLs into the cache.
-     *
-     * This can be useful for warming the cache with commonly-used font slices
-     * before they're actually needed, improving perceived performance.
-     *
-     * @param urls The list of URLs to preload.
-     */
-    suspend fun preload(urls: List<String>) {
-        urls.forEach { url ->
-            try {
-                getOrLoad(url)
-            } catch (e: Exception) {
-                println("ERROR: Failed to preload font from $url: ${e.message}")
-            }
-        }
-    }
-
-    /**
-     * Clears all cached font data.
+     * Clears all cached CSS data.
      */
     suspend fun clear() {
         mutex.withLock {
@@ -121,4 +97,20 @@ object FontSliceCache {
             _size.value = 0
         }
     }
+}
+
+/**
+ * Fetches and parses CSS font descriptions from a URL.
+ *
+ * Automatically resolves relative URLs in the CSS against the CSS file's URL.
+ * Results are cached globally to avoid redundant requests.
+ *
+ * This is a convenience function that delegates to [CssCache.getOrLoad].
+ *
+ * @param url The URL of the CSS file.
+ * @return A list of ParsedFontDescriptor objects parsed from the CSS with resolved URLs.
+ * @throws Exception if fetching or parsing fails.
+ */
+suspend fun getFontCssDescription(url: String): List<ParsedFontDescriptor> {
+    return CssCache.getOrLoad(url)
 }

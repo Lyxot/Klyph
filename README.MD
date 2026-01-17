@@ -9,9 +9,10 @@ Klyph is a Kotlin Multiplatform library that brings web-style font subsetting to
 - **Smart Font Subsetting**: Automatically loads only the font slices needed for the characters you're rendering
 - **CSS Integration**: Parses standard CSS `@font-face` rules with `unicode-range` descriptors
 - **Automatic URL Resolution**: Handles relative URLs in CSS files (e.g., `./font.woff2`, `../fonts/font.woff2`)
-- **Global Caching**: Font slices are cached across the entire application session to minimize network requests
+- **Global Caching**: Font slices and CSS files are cached across the entire application session with request
+  deduplication
 - **Lazy Loading**: Font data is loaded on-demand as characters are rendered
-- **Compose-First**: Seamlessly integrates with Compose Multiplatform using familiar APIs
+- **Compose-First**: Seamlessly integrates with Compose Multiplatform using familiar scoped APIs
 - **Multiplatform Support**: Works on JavaScript and WebAssembly targets
 
 ## Why Klyph?
@@ -25,7 +26,7 @@ Klyph solves this by:
 1. Parsing CSS files that define font slices with unicode-range
 2. Analyzing your text to determine which characters are needed
 3. Loading only the relevant font slices from the cache or network
-4. Composing them into a standard Compose `FontFamily`
+4. Applying them character-by-character using AnnotatedString
 
 ## Installation
 
@@ -140,12 +141,13 @@ Klyph's `SubsetText` solves the FontFamily limitation by applying fonts characte
 
 1. **CSS Parsing**: Fetches and parses CSS files containing `@font-face` rules with `unicode-range` descriptors
 2. **URL Resolution**: Relative URLs in CSS (like `url(./font.woff2)`) are automatically resolved against the CSS file's base URL
-3. **Character Analysis**: Analyzes each unique character in your text
+3. **Character Analysis**: Analyzes each character in your text and groups consecutive characters using the same font
 4. **Range Matching**: Each character is matched against unicode-range values to determine which font slice it needs
 5. **Lazy Loading**: Only the matched font slices are fetched from the network (or cache)
 6. **AnnotatedString Building**: Builds an `AnnotatedString` where each character span gets its own `FontFamily` (containing only one font slice)
 7. **Rendering**: The standard Text composable renders the AnnotatedString with proper font assignments
-8. **Global Caching**: Once a font slice is loaded, it's cached globally for the session
+8. **Global Caching**: Once a font slice or CSS file is loaded, it's cached globally for the session with request
+   deduplication
 
 This approach ensures that "Hello 你好" correctly renders "Hello" with the Latin font slice and "你好" with the Chinese font slice, all in the same text element.
 
@@ -167,11 +169,18 @@ Klyph supports all standard CSS unicode-range formats:
 @Composable
 fun SubsetFontProvider(
     cssUrl: String,
+    fontFamily: FontFamily? = null,
     content: @Composable SubsetFontScope.() -> Unit
 )
 ```
 
 Provides a CSS URL scope for font subsetting. Creates a `SubsetFontScope` where the scoped `SubsetText` function is available.
+
+**Parameters:**
+
+- `cssUrl`: The URL of the CSS file containing @font-face rules
+- `fontFamily`: Optional fallback FontFamily for characters not covered by subset fonts
+- `content`: Composable content within the SubsetFontScope
 
 **Usage:**
 ```kotlin
@@ -216,7 +225,7 @@ fun SubsetText(
 
 Standalone version that requires explicit CSS URL. Use this for one-off cases outside of `SubsetFontProvider`.
 
-### Utility Functions
+### Utility Functions and Caches
 
 #### `getFontCssDescription`
 
@@ -224,7 +233,8 @@ Standalone version that requires explicit CSS URL. Use this for one-off cases ou
 suspend fun getFontCssDescription(url: String): List<FontFace>
 ```
 
-Fetches and parses CSS to extract `@font-face` rules.
+Fetches and parses CSS to extract `@font-face` rules. Automatically uses `CssCache` internally for caching and request
+deduplication.
 
 #### `FontSliceCache`
 
@@ -241,6 +251,11 @@ object FontSliceCache {
 
 **Request Deduplication**: When multiple concurrent requests are made for the same font URL, only one network request is
 performed and all requests share the result.
+
+**Example:**
+If 10 `SubsetText` instances all render "你好" and mount simultaneously, they will all request the same Chinese font
+slice. Without deduplication, this would trigger 10 identical network requests. With deduplication, only 1 request is
+made and all 10 instances share the result.
 
 #### `CssCache`
 
@@ -311,6 +326,8 @@ Currently supports:
    ```
 3. **Static Text**: For static text that doesn't change, font slices are loaded once and cached
 4. **Dynamic Text**: The system efficiently handles dynamic text by only loading new slices as needed
+5. **Scoped Provider**: Use `SubsetFontProvider` to wrap multiple `SubsetText` instances that share the same CSS URL for
+   better performance
 
 ## Comparison: Traditional vs. Klyph
 
@@ -347,9 +364,24 @@ SubsetFontProvider(cssUrl = "font-subset.css") {
 
 ## Architecture
 
-### Core Components
+### File Structure
 
-Klyph is built from several focused components that work together to provide efficient font subsetting:
+Klyph is organized into focused, single-responsibility modules:
+
+```
+xyz.hyli.klyph/
+├── SubsetText.kt           # Primary API: SubsetText composable (scoped & standalone)
+├── SubsetFontProvider.kt   # Scoped API: SubsetFontScope & SubsetFontProvider
+├── FontFace.kt             # CSS parsing: @font-face rule parsing
+├── FontDescriptor.kt       # Font metadata: Descriptor model and parsing
+├── UnicodeRange.kt         # Character matching: Unicode range parsing and matching
+├── FontSliceCache.kt       # Caching: Font file cache with request deduplication
+├── CssCache.kt             # Caching: CSS file cache with request deduplication
+├── UrlUtils.kt             # Utilities: Relative URL resolution
+└── HttpClient.kt           # Platform: HTTP client expect/actual declaration
+```
+
+### Core Components
 
 #### 1. SubsetText (Primary API)
 **File**: `SubsetText.kt`
@@ -358,99 +390,221 @@ The main user-facing composable with two variants:
 - **Scoped**: `SubsetFontScope.SubsetText()` - No cssUrl parameter, gets it from scope
 - **Standalone**: `SubsetText(cssUrl = ...)` - Explicit CSS URL for one-off usage
 
-Key functions:
+**Key Functions:**
 - `rememberSubsetAnnotatedString()`: Builds AnnotatedString with font assignments
-- `buildCharToDescriptorMap()`: Maps characters to font descriptors
+- `findDescriptor()`: Finds descriptor for a character with locality hint optimization
+- `TextInterval`: Data class representing a contiguous run of text with the same font
 
-#### 2. FontFace (CSS Parsing)
+**Algorithm Optimization:**
+The character-to-font matching uses a locality hint pattern that optimizes sequential lookups from O(D) to O(1) for
+consecutive characters in the same script, where D is the number of font descriptors. This is particularly effective for
+real-world text where characters are often grouped by script (e.g., "Hello 世界 World" has 3 transitions, not 15).
+
+#### 2. SubsetFontProvider (Scoped API)
+
+**File**: `SubsetFontProvider.kt`
+
+Provides the scoped API pattern similar to Row/Column:
+
+- **SubsetFontScope**: Scope class holding CSS URL and fallback FontFamily
+- **SubsetFontProvider**: Composable that creates scope and runs content lambda
+- Type-safe scoped API eliminates repetitive cssUrl parameters
+
+**Pattern:**
+
+```kotlin
+class SubsetFontScope internal constructor(
+   internal val cssUrl: String,
+   internal val fontFamily: FontFamily?
+)
+
+@Composable
+fun SubsetFontProvider(
+   cssUrl: String,
+   fontFamily: FontFamily? = null,
+   content: @Composable SubsetFontScope.() -> Unit
+)
+```
+
+#### 3. FontFace (CSS Parsing)
 **File**: `FontFace.kt`
 
 Parses CSS `@font-face` rules into structured data:
-- `FontFace`: Complete @font-face rule representation
-- `FontSrc`: Single src descriptor (url, local, format, tech)
-- `parseCssToObjects()`: Parses CSS string into FontFace objects
-- Supports all CSS font descriptors and resolves relative URLs
 
-#### 3. UnicodeRange (Character Matching)
+- **FontFace**: Complete @font-face rule representation with font-family, weight, style, unicode-range, src
+- **FontSrc**: Single src descriptor (url, local, format, tech)
+- **parseCssToObjects()**: Main CSS parser that extracts @font-face rules and resolves relative URLs
+
+**Features:**
+
+- Supports all CSS font descriptors (font-family, font-weight, font-style, unicode-range, src)
+- Handles multiple src formats (url, local, format, tech)
+- Automatically resolves relative URLs against base URL
+
+#### 4. FontDescriptor (Font Metadata)
+
+**File**: `FontDescriptor.kt`
+
+Handles font descriptor parsing and font creation:
+
+- **ParsedFontDescriptor**: Structured font descriptor with typed properties (url, fontFamily, weight, style,
+  unicodeRanges)
+- **parseFontDescriptor()**: Converts FontFace to ParsedFontDescriptor with typed properties
+- **createFontFromData()**: Creates Compose Font from ByteArray with proper metadata
+- **Helper Functions**: `parseFontWeight()`, `parseFontStyle()` for CSS value parsing
+
+**Type Conversion:**
+Converts from CSS string values to Compose types:
+
+- `"normal"`, `"bold"`, `"400"` → `FontWeight`
+- `"normal"`, `"italic"`, `"oblique"` → `FontStyle`
+
+#### 5. UnicodeRange (Character Matching)
 **File**: `UnicodeRange.kt`
 
 Handles unicode-range parsing and character matching:
-- Supports: Single code points (`U+26`), ranges (`U+4E00-9FFF`), wildcards (`U+4??`), multiple ranges
-- `parseUnicodeRange()`: Parses CSS unicode-range values
-- `isCharInRanges()`: Checks if character falls within ranges
 
-#### 4. FontSliceCache & CssCache (Global Caching)
+- **UnicodeRange**: Data class representing a unicode range (start, end)
+- **parseUnicodeRange()**: Parses CSS unicode-range values into UnicodeRange objects
+- **isCharInRanges()**: Checks if a character falls within a list of unicode ranges
+
+**Supported Formats:**
+
+- Single code point: `U+26` → `UnicodeRange(0x26, 0x26)`
+- Range: `U+4E00-9FFF` → `UnicodeRange(0x4E00, 0x9FFF)`
+- Wildcard: `U+4??` → `UnicodeRange(0x400, 0x4FF)`
+- Multiple ranges: `U+0-FF, U+131, U+152-153` → List of UnicodeRange objects
+
+#### 6. FontSliceCache (Font Caching)
 **File**: `FontSliceCache.kt`
 
-Thread-safe global caches with request deduplication using `Deferred`:
+Thread-safe global cache for font files with request deduplication:
 
-- **FontSliceCache**: Caches font file ByteArrays
-   - `getOrLoad()`: Gets from cache or loads from network
-   - Concurrent requests for same URL deduplicated to single fetch
-- **CssCache**: Caches parsed CSS FontFace lists
-   - `getOrLoad()`: Gets from cache or fetches+parses
-   - Concurrent requests for same CSS deduplicated to single fetch+parse
-- Helper functions for parsing font descriptors and creating Compose fonts
+- **Cache Storage**: `MutableMap<String, Deferred<ByteArray>>`
+- **Thread Safety**: Mutex-protected operations
+- **Request Deduplication**: Stores `Deferred` to prevent concurrent duplicate fetches
+- **Size Tracking**: `StateFlow<Int>` for reactive cache size monitoring
+- **Operations**: `getOrLoad()`, `preload()`, `clear()`
 
 **Request Deduplication Pattern:**
-
 ```kotlin
 val deferred = mutex.withLock {
    cache[url]?.let { return@withLock it }
-   async { fetchData(url) }.also { cache[url] = it }
+   async {
+      try {
+         httpClient.get(url).body<ByteArray>()
+      } catch (e: Exception) {
+         mutex.withLock { cache.remove(url) }
+         throw e
+      }
+   }.also { cache[url] = it }
 }
 return deferred.await()
 ```
 
-When 10 composables mount simultaneously and all request the same font, only 1 network request occurs.
+**Why Deduplication Matters:**
+If 10 `SubsetText` instances mount simultaneously and all need the same Chinese font slice, without deduplication: 10
+network requests. With deduplication: 1 network request, all share result.
 
-#### 5. UrlUtils (URL Resolution)
+#### 7. CssCache (CSS Caching)
+
+**File**: `CssCache.kt`
+
+Thread-safe global cache for parsed CSS files with request deduplication:
+
+- **Cache Storage**: `MutableMap<String, Deferred<List<FontFace>>>`
+- **Thread Safety**: Mutex-protected operations
+- **Request Deduplication**: Stores `Deferred` to prevent concurrent duplicate fetch+parse
+- **Size Tracking**: `StateFlow<Int>` for reactive cache size monitoring
+- **Operations**: `getOrLoad()`, `clear()`
+- **Helper Function**: `getFontCssDescription()` - convenience wrapper for `CssCache.getOrLoad()`
+
+**Integrated URL Resolution:**
+Automatically resolves relative URLs in CSS against the CSS file's base URL during parsing.
+
+#### 8. UrlUtils (URL Resolution)
 **File**: `UrlUtils.kt`
 
-Resolves relative URLs in CSS:
-- Handles absolute URLs, relative paths (`./`, `../`), absolute paths (`/`), protocol-relative (`//`), and data URLs
-- `resolveUrl()`: Main resolution function
+Resolves relative URLs in CSS files:
 
-#### 6. FontFamily (Scope & Utilities)
-**File**: `FontFamily.kt`
+- **resolveUrl()**: Main resolution function that handles all URL types
+- **Supports**: Absolute URLs, relative paths (`./`, `../`), absolute paths (`/`), protocol-relative (`//`), data URLs
 
-Provides scoped API pattern:
-- `SubsetFontScope`: Scope class holding CSS URL
-- `SubsetFontProvider`: Creates scope and runs content lambda
-- `getFontCssDescription()`: Fetches and parses CSS
-- Type-safe scoped API similar to `RowScope`, `ColumnScope`
+**Example:**
+
+```kotlin
+resolveUrl("https://example.com/css/fonts.css", "./font.woff2")
+// → "https://example.com/css/font.woff2"
+
+resolveUrl("https://example.com/css/fonts.css", "../assets/font.woff2")
+// → "https://example.com/assets/font.woff2"
+```
+
+#### 9. HttpClient (Platform Abstraction)
+
+**File**: `HttpClient.kt`
+
+Platform-specific HTTP client declaration using Kotlin's expect/actual pattern:
+
+```kotlin
+expect val httpClient: HttpClient
+```
+
+Implementations provided in platform-specific source sets (jsMain, wasmJsMain).
 
 ### Data Flow
 
 ```
 1. User calls SubsetText("Hello 世界!")
         ↓
-2. CSS Fetching & Parsing
-   - getFontCssDescription() fetches CSS
+2. CSS Fetching & Caching
+   - CssCache.getOrLoad(cssUrl) checks cache
+   - If miss: httpClient fetches CSS
    - parseCssToObjects() parses @font-face rules
    - resolveUrl() resolves relative URLs
+   - Result cached in CssCache
         ↓
-3. Character Analysis
-   - buildCharToDescriptorMap() analyzes each character
-   - Match against unicode-range values
-   - Returns Map<Char, ParsedFontDescriptor>
+3. Descriptor Parsing & Filtering
+   - parseFontDescriptor() converts FontFace to ParsedFontDescriptor
+   - Filter by requested weight/style
         ↓
-4. Font Loading
-   - FontSliceCache.getOrLoad() for each unique descriptor
-   - createFontFromData() creates Compose Font
-   - Wrap in FontFamily(singleFont)
+4. Character Analysis & Interval Building
+   - Analyze text character by character
+   - findDescriptor() matches each char to descriptor using unicode-range
+   - Group consecutive chars with same font into TextIntervals
+   - Optimization: locality hint reduces lookups from O(D) to O(1)
         ↓
-5. AnnotatedString Building
-   - Group consecutive chars with same font
-   - Apply SpanStyle(fontFamily = ...) to each group
-   - Fallback to FontFamily.Default for unmapped chars
+5. Font Loading & Caching
+   - For each unique descriptor in intervals:
+     - FontSliceCache.getOrLoad(url) checks cache
+     - If miss: httpClient fetches font data
+     - createFontFromData() creates Compose Font
+     - Wrap in FontFamily(singleFont)
+     - Result cached in FontSliceCache
         ↓
-6. Rendering
-   - Standard Text() renders the AnnotatedString
+6. AnnotatedString Building
+   - For each TextInterval:
+     - Get substring
+     - Get FontFamily from descriptor map
+     - Apply SpanStyle(fontFamily = ...) to span
+   - Fallback to default for unmapped chars
+        ↓
+7. Rendering
+   - Standard Text() composable renders the AnnotatedString
    - Compose applies correct font to each span
 ```
 
 ### Design Decisions
+
+**Why Separate Files for Each Component?**
+
+The reorganized structure provides:
+
+- **Single Responsibility**: Each file has one clear purpose
+- **Easy Navigation**: Developers can quickly find relevant code
+- **Better Testability**: Components can be tested in isolation
+- **Maintainability**: Changes to one component don't affect others
+- **Clear Dependencies**: Import statements make dependencies explicit
 
 **Why AnnotatedString?**
 
@@ -460,15 +614,23 @@ Problem: Compose's FontFamily can only select one font at render time, causing c
 
 Solution: Use AnnotatedString with per-character FontFamily assignments. Each FontFamily contains only one font slice, ensuring correct selection.
 
+**Why Two Separate Caches (FontSliceCache and CssCache)?**
+
+Separation of concerns:
+
+- **FontSliceCache**: Caches binary font data (ByteArray), potentially large (50-200 KB each)
+- **CssCache**: Caches parsed CSS metadata (List<FontFace>), lightweight structured data
+- **Different Lifetimes**: CSS rarely changes, fonts loaded on-demand
+- **Clear Responsibilities**: Font loading vs CSS parsing are distinct operations
+- **Independent Monitoring**: Separate size StateFlows for debugging
+
 **Why Global Cache with Request Deduplication?**
 
 Font and CSS data are expensive to load (network + parsing). Without request deduplication:
-
 - 10 `SubsetText` instances mounting simultaneously = 10 identical network requests
 - Race condition: all see cache empty, all fetch the same resource
 
 Global cache with request deduplication ensures:
-
 - Fonts and CSS loaded only once per session
 - Concurrent requests for same URL result in single network fetch
 - Multiple SubsetText instances share loaded resources
@@ -481,56 +643,89 @@ Implementation: Uses `Deferred<T>` stored in cache so first request starts fetch
 **Why Character-by-Character?**
 
 Character-level approach provides:
-- Maximum precision (each character gets exact font)
-- Simplicity (no word boundary detection)
-- Robustness (works for all languages including CJK)
-- Negligible performance impact (consecutive chars batched)
+
+- **Maximum Precision**: Each character gets exact font needed
+- **Simplicity**: No word boundary detection needed
+- **Robustness**: Works for all languages including CJK
+- **Negligible Performance Impact**: Consecutive chars batched into TextIntervals
+- **Locality Optimization**: Sequential lookups optimized with hint pattern
 
 ### Performance Characteristics
 
 **Network Requests:**
-- CSS: 1 request per CSS URL (cached in `produceState`)
-- Font slices: 1 request per unique font URL (cached globally)
-- Example: "Hello 世界" = 1 CSS + 2 font slices
+
+- CSS: 1 request per CSS URL (cached globally with deduplication)
+- Font slices: 1 request per unique font URL (cached globally with deduplication)
+- Example: "Hello 世界" with shared CSS = 1 CSS fetch + 2 font slice fetches (first render)
+- Subsequent renders: 0 network requests (all cached)
 
 **Memory Usage:**
-- FontSliceCache holds ByteArray for each loaded font
+
+- FontSliceCache: Holds ByteArray for each loaded font slice
 - Typical slice: 50-200 KB
-- Example session: 10 slices ≈ 1-2 MB
+- Example session with 10 slices: ~1-2 MB total
+- CssCache: Holds parsed FontFace lists (lightweight metadata)
+- Typical CSS: <10 KB in memory
 
 **Rendering Performance:**
-- AnnotatedString building: O(n) where n = text length
-- Character grouping batches consecutive chars with same font
-- Negligible impact vs standard Text
+
+- Text analysis & interval building: O(n) where n = text length
+- Character matching: Amortized O(n) with locality hint (O(n×d) worst case, where d = descriptor count)
+- AnnotatedString building: O(i) where i = number of intervals
+- Negligible impact vs standard Text (batching minimizes spans)
+
+**Cache Efficiency:**
+
+- Request deduplication prevents duplicate work
+- Global session cache maximizes hit rate
+- StateFlow size monitoring enables reactive debugging
 
 ### Known Limitations
 
-1. **Platform Support**: Currently JS/Wasm only (native platforms would need platform-specific HttpClient and Font loading)
+1. **Platform Support**: Currently JS/Wasm only (native platforms would need platform-specific HttpClient and Font
+   loading implementations)
 2. **Font Formats**: Depends on platform support (WOFF2 on web)
 3. **Complex Scripts**: No special handling for ligatures or kerning across font boundaries
-4. **Dynamic CSS**: No support for CSS variables or @import
+4. **Dynamic CSS**: No support for CSS variables, @import, or nested @font-face rules
 5. **Local Fonts**: `local()` in src is ignored (web-only limitation)
+6. **Font Fallback**: Unmapped characters use system default, not configurable fallback chains
 
 ### Future Enhancements
 
 **Potential Features:**
-1. Automatic CSS generation with unicode-range from font files
-2. Font subsetting tool to subset fonts based on app text
-3. Preload optimization by analyzing app text
-4. Native platform support (iOS, Android, Desktop)
-5. Advanced typography: ligatures, kerning
-6. Progressive font loading for large character sets
+
+1. Automatic CSS generation tool with unicode-range from font files
+2. Font subsetting tool to create subsets based on app text analysis
+3. Intelligent preload optimization by analyzing app text patterns
+4. Native platform support (iOS, Android, Desktop) with platform-specific implementations
+5. Advanced typography: ligatures, kerning, OpenType features
+6. Progressive font loading for large character sets with priority-based loading
+7. Font variant support (small-caps, numeric variants, etc.)
+8. Configurable fallback chains for unmapped characters
 
 **API Evolution:**
-- SubsetText as primary API (scoped + standalone)
-- SubsetTextField for text input
-- SubsetButton, SubsetLabel, etc.
-- More scoped composables for Material3 text components
 
-### Run Sample App
+- SubsetText as primary API (scoped + standalone versions)
+- SubsetTextField for text input with dynamic font loading
+- SubsetButton, SubsetLabel for Material3 integration
+- More scoped composables for common text components
+- Font preloading hints and analytics
 
- - JavaScript: `./gradlew :sample:composeApp:jsBrowserRun`
- - Wasm: `./gradlew :sample:composeApp:wasmJsBrowserRun`
+## Run Sample App
+
+Run the sample app to see Klyph in action:
+
+- JavaScript: `./gradlew :sample:composeApp:jsBrowserRun`
+- Wasm: `./gradlew :sample:composeApp:wasmJsBrowserRun`
+
+The sample demonstrates:
+
+- Basic font subsetting with Chinese/Latin mixed text
+- Multiple font weights and styles
+- Large text content with performance benefits
+- Real-time cache monitoring (font slice cache and CSS cache sizes)
+
+## Publishing
 
 ### Publish to MavenLocal
 
@@ -539,11 +734,11 @@ Character-level approach provides:
 
 ### Publish to MavenCentral
 
-1) Create an account and a namespace on Sonatype:  
+1) Create an account and a namespace on Sonatype:
    https://central.sonatype.org/register/central-portal/#create-an-account
-2) Add developer id, name, email and the project url to  
+2) Add developer id, name, email and the project url to
    `./klyph/build.gradle.kts`
-3) Generate a GPG key:  
+3) Generate a GPG key:
    https://getstream.io/blog/publishing-libraries-to-mavencentral-2021/#generating-a-gpg-key-pair
    ```
    gpg --full-gen-key

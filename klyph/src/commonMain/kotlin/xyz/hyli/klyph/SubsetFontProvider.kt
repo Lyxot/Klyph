@@ -19,8 +19,6 @@ package xyz.hyli.klyph
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.text.font.FontFamily
-import io.ktor.client.call.*
-import io.ktor.client.request.*
 
 /**
  * Scope for [SubsetFontProvider] that provides access to scoped SubsetText function.
@@ -39,6 +37,7 @@ import io.ktor.client.request.*
  * ```
  *
  * @property cssUrl The CSS URL provided by SubsetFontProvider, used by scoped SubsetText calls.
+ * @property fontFamily Optional fallback FontFamily for characters not covered by subset fonts.
  */
 class SubsetFontScope internal constructor(
     internal val cssUrl: String,
@@ -51,6 +50,12 @@ class SubsetFontScope internal constructor(
  * Within this scope, you can use [SubsetText] without specifying the cssUrl parameter.
  * The CSS URL is automatically provided from the scope.
  *
+ * This is the recommended way to use Klyph for font subsetting, as it:
+ * - Eliminates repetitive cssUrl parameters
+ * - Provides type-safe scoped API
+ * - Follows familiar Compose patterns (similar to Row/Column)
+ * - Enables all SubsetText calls within the scope to share the same CSS cache
+ *
  * Example:
  * ```
  * SubsetFontProvider(cssUrl = "https://example.com/fonts.css") {
@@ -58,10 +63,16 @@ class SubsetFontScope internal constructor(
  *         text = "你好世界 Hello World",
  *         fontSize = 20.sp
  *     )
+ *     SubsetText(
+ *         text = "Another text 另一段文字",
+ *         fontSize = 16.sp,
+ *         fontWeight = FontWeight.Bold
+ *     )
  * }
  * ```
  *
  * @param cssUrl The URL of the CSS file containing @font-face rules with unicode-range.
+ * @param fontFamily Optional fallback FontFamily for characters not covered by subset fonts.
  * @param content The composable content within the SubsetFontScope.
  */
 @Composable
@@ -70,36 +81,11 @@ fun SubsetFontProvider(
     fontFamily: FontFamily? = null,
     content: @Composable SubsetFontScope.() -> Unit
 ) {
-    val scope = remember(cssUrl) {
+    val scope = remember(cssUrl, fontFamily) {
         SubsetFontScope(
             cssUrl = cssUrl,
             fontFamily = fontFamily
         )
     }
     scope.content()
-}
-
-/**
- * Fetches and parses CSS font descriptions from a URL.
- *
- * Automatically resolves relative URLs in the CSS against the CSS file's URL.
- * Results are cached globally to avoid redundant requests.
- *
- * @param url The URL of the CSS file.
- * @return A list of FontFace objects parsed from the CSS with resolved URLs.
- */
-suspend fun getFontCssDescription(url: String): List<FontFace> {
-    return CssCache.getOrLoad(url)
-}
-
-/**
- * Fetches binary font data from a URL.
- *
- * @param url The URL of the font file.
- * @return The font data as ByteArray.
- */
-suspend fun getFontData(url: String): ByteArray {
-    val res = httpClient.get(url)
-    val fontData = res.body<ByteArray>()
-    return fontData
 }

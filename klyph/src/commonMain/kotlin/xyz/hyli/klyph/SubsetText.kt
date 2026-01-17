@@ -227,8 +227,8 @@ private fun rememberSubsetAnnotatedString(
     requestedWeight: FontWeight?,
     requestedStyle: FontStyle?
 ): AnnotatedString {
-    // Parse CSS and cache the font faces
-    val fontFaces by produceState(emptyList(), cssUrl) {
+    // Parse CSS and cache the font descriptors
+    val allDescriptors by produceState(emptyList(), cssUrl) {
         try {
             value = getFontCssDescription(cssUrl)
         } catch (e: Exception) {
@@ -237,14 +237,13 @@ private fun rememberSubsetAnnotatedString(
         }
     }
 
-    // Parse font descriptors
-    val descriptors = remember(fontFaces, requestedWeight, requestedStyle) {
-        fontFaces.mapNotNull { parseFontDescriptor(it) }
-            .filter { descriptor ->
-                val weightMatches = requestedWeight == null || descriptor.weight == requestedWeight
-                val styleMatches = requestedStyle == null || descriptor.style == requestedStyle
-                weightMatches && styleMatches
-            }
+    // Filter descriptors by requested weight and style
+    val descriptors = remember(allDescriptors, requestedWeight, requestedStyle) {
+        allDescriptors.filter { descriptor ->
+            val weightMatches = requestedWeight == null || descriptor.weight == requestedWeight
+            val styleMatches = requestedStyle == null || descriptor.style == requestedStyle
+            weightMatches && styleMatches
+        }
     }
 
     // Analyze text to produce intervals - Amortized O(N) time due to locality hint, O(I) space
