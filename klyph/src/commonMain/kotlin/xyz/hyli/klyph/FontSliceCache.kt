@@ -19,39 +19,61 @@ package xyz.hyli.klyph
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.platform.Font as PlatformFont
+import io.ktor.client.call.*
+import io.ktor.client.request.*
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import androidx.compose.ui.text.platform.Font as PlatformFont
 
 /**
- * Global cache for loaded font slices.
- * Maps font URLs to their loaded ByteArray data.
+ * Global cache for loaded font slices with request deduplication.
+ *
+ * When multiple concurrent requests are made for the same font URL,
+ * only one network request is performed and all requests share the result.
  */
 object FontSliceCache {
-    private val cache = mutableMapOf<String, ByteArray>()
+    private val cache = mutableMapOf<String, Deferred<ByteArray>>()
     private val mutex = Mutex()
+    private val _size = MutableStateFlow(0)
+    val size: StateFlow<Int>
+        get() = _size
 
     /**
      * Gets font data from cache or loads it from the URL if not cached.
      *
+     * Implements request deduplication: if multiple concurrent calls request
+     * the same URL, only one network fetch occurs and all callers receive
+     * the same result.
+     *
      * @param url The URL of the font resource.
      * @return The font data as ByteArray.
      */
-    suspend fun getOrLoad(url: String): ByteArray {
-        // Check cache first (read lock)
-        mutex.withLock {
-            cache[url]?.let { return it }
+    suspend fun getOrLoad(url: String): ByteArray = coroutineScope {
+        val deferred = mutex.withLock {
+            // Check if already in cache or being fetched
+            cache[url]?.let { return@withLock it }
+
+            // Not in cache, create deferred and start fetch
+            async {
+                try {
+                    getFontData(url)
+                } catch (e: Exception) {
+                    // Remove from cache on error so retry is possible
+                    mutex.withLock { cache.remove(url) }
+                    throw e
+                }
+            }.also {
+                cache[url] = it
+                _size.value = cache.size
+            }
         }
 
-        // Not in cache, load the font
-        val fontData = getFontData(url)
-
-        // Store in cache (write lock)
-        mutex.withLock {
-            cache[url] = fontData
-        }
-
-        return fontData
+        deferred.await()
     }
 
     /**
@@ -77,15 +99,61 @@ object FontSliceCache {
             cache.clear()
         }
     }
+}
+
+/**
+ * Global cache for CSS files with request deduplication.
+ *
+ * Caches parsed CSS font faces to avoid redundant network requests
+ * and parsing when the same CSS URL is used multiple times.
+ */
+object CssCache {
+    private val cache = mutableMapOf<String, Deferred<List<FontFace>>>()
+    private val mutex = Mutex()
+    private val _size = MutableStateFlow(0)
+    val size: StateFlow<Int>
+        get() = _size
 
     /**
-     * Gets the current cache size.
+     * Gets parsed CSS font faces from cache or fetches and parses if not cached.
      *
-     * @return The number of cached font slices.
+     * Implements request deduplication: if multiple concurrent calls request
+     * the same CSS URL, only one network fetch and parse occurs.
+     *
+     * @param url The URL of the CSS file.
+     * @return List of FontFace objects parsed from the CSS.
      */
-    suspend fun size(): Int {
-        return mutex.withLock {
-            cache.size
+    suspend fun getOrLoad(url: String): List<FontFace> = coroutineScope {
+        val deferred = mutex.withLock {
+            // Check if already in cache or being fetched
+            cache[url]?.let { return@withLock it }
+
+            // Not in cache, create deferred and start fetch
+            async {
+                try {
+                    val res = httpClient.get(url)
+                    val body = res.body<String>()
+                    parseCssToObjects(body, baseUrl = url)
+                } catch (e: Exception) {
+                    // Remove from cache on error so retry is possible
+                    mutex.withLock { cache.remove(url) }
+                    throw e
+                }
+            }.also {
+                cache[url] = it
+                _size.value = cache.size
+            }
+        }
+
+        deferred.await()
+    }
+
+    /**
+     * Clears all cached CSS data.
+     */
+    suspend fun clear() {
+        mutex.withLock {
+            cache.clear()
         }
     }
 }

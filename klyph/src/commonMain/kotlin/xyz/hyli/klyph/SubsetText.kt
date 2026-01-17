@@ -21,18 +21,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.TextLayoutResult
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.*
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.TextUnit
+import kotlinx.coroutines.launch
 
 /**
  * A Text composable within [SubsetFontProvider] scope that automatically loads font slices
@@ -96,25 +93,25 @@ fun SubsetFontScope.SubsetText(
     onTextLayout: (TextLayoutResult) -> Unit = {},
     style: TextStyle = LocalTextStyle.current
 ) = SubsetText(
-        text = text,
-        modifier = modifier,
-        color = color,
-        fontSize = fontSize,
-        fontStyle = fontStyle,
-        fontWeight = fontWeight,
-        fontFamily = fontFamily,
-        letterSpacing = letterSpacing,
-        textDecoration = textDecoration,
-        textAlign = textAlign,
-        lineHeight = lineHeight,
-        overflow = overflow,
-        softWrap = softWrap,
-        maxLines = maxLines,
-        minLines = minLines,
-        onTextLayout = onTextLayout,
-        style = style,
-        cssUrl = cssUrl
-    )
+    text = text,
+    modifier = modifier,
+    color = color,
+    fontSize = fontSize,
+    fontStyle = fontStyle,
+    fontWeight = fontWeight,
+    fontFamily = fontFamily,
+    letterSpacing = letterSpacing,
+    textDecoration = textDecoration,
+    textAlign = textAlign,
+    lineHeight = lineHeight,
+    overflow = overflow,
+    softWrap = softWrap,
+    maxLines = maxLines,
+    minLines = minLines,
+    onTextLayout = onTextLayout,
+    style = style,
+    cssUrl = cssUrl
+)
 
 /**
  * A Text composable that automatically loads font slices and applies them character-by-character.
@@ -252,7 +249,7 @@ private fun rememberSubsetAnnotatedString(
     text: String,
     requestedWeight: FontWeight?,
     requestedStyle: FontStyle?
-): androidx.compose.ui.text.AnnotatedString {
+): AnnotatedString {
     // Parse CSS and cache the font faces
     val fontFaces by produceState<List<FontFace>>(emptyList(), cssUrl) {
         try {
@@ -290,20 +287,20 @@ private fun rememberSubsetAnnotatedString(
         }
 
         val uniqueDescriptors = charToDescriptor.values.toSet()
-        val newMap = mutableMapOf<ParsedFontDescriptor, FontFamily>()
+        val missingDescriptors = uniqueDescriptors.filter { it !in descriptorToFontFamily }
 
-        for (descriptor in uniqueDescriptors) {
-            try {
-                val fontData = FontSliceCache.getOrLoad(descriptor.url)
-                val font = createFontFromData(fontData, descriptor)
-                // Each FontFamily contains ONLY ONE font slice
-                newMap[descriptor] = FontFamily(font)
-            } catch (e: Exception) {
-                println("ERROR: Failed to load font from ${descriptor.url}: ${e.message}")
+        missingDescriptors.forEach { descriptor ->
+            launch {
+                try {
+                    val fontData = FontSliceCache.getOrLoad(descriptor.url)
+                    val font = createFontFromData(fontData, descriptor)
+                    // Each FontFamily contains ONLY ONE font slice
+                    descriptorToFontFamily += (descriptor to FontFamily(font))
+                } catch (e: Exception) {
+                    println("ERROR: Failed to load font from ${descriptor.url}: ${e.message}")
+                }
             }
         }
-
-        descriptorToFontFamily = newMap
     }
 
     // Build the annotated string

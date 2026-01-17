@@ -228,16 +228,34 @@ Fetches and parses CSS to extract `@font-face` rules.
 
 #### `FontSliceCache`
 
-Global cache for loaded font slices:
+Global cache for loaded font slices with request deduplication:
 
 ```kotlin
 object FontSliceCache {
-    suspend fun getOrLoad(url: String): ByteArray
-    suspend fun preload(urls: List<String>)
-    suspend fun clear()
-    suspend fun size(): Int
+   val size: StateFlow<Int>                       // number of cached slices
+   suspend fun getOrLoad(url: String): ByteArray  // Gets from cache or fetches
+   suspend fun preload(urls: List<String>)        // Preloads multiple fonts
+   suspend fun clear()                            // Clears all cached fonts
 }
 ```
+
+**Request Deduplication**: When multiple concurrent requests are made for the same font URL, only one network request is
+performed and all requests share the result.
+
+#### `CssCache`
+
+Global cache for parsed CSS files with request deduplication:
+
+```kotlin
+object CssCache {
+   val size: StateFlow<Int>                            // number of cached CSS files
+   suspend fun getOrLoad(url: String): List<FontFace>  // Gets from cache or fetches+parses
+   suspend fun clear()                                 // Clears all cached CSS
+}
+```
+
+**Request Deduplication**: When multiple concurrent requests are made for the same CSS URL, only one network request and
+parse operation is performed.
 
 ## Example CSS Format
 
@@ -361,14 +379,30 @@ Handles unicode-range parsing and character matching:
 - `parseUnicodeRange()`: Parses CSS unicode-range values
 - `isCharInRanges()`: Checks if character falls within ranges
 
-#### 4. FontSliceCache (Global Caching)
+#### 4. FontSliceCache & CssCache (Global Caching)
 **File**: `FontSliceCache.kt`
 
-Thread-safe global cache using Mutex:
-- `getOrLoad()`: Gets from cache or loads from network
-- `preload()`: Preloads multiple fonts
-- `clear()`: Clears cache
+Thread-safe global caches with request deduplication using `Deferred`:
+
+- **FontSliceCache**: Caches font file ByteArrays
+   - `getOrLoad()`: Gets from cache or loads from network
+   - Concurrent requests for same URL deduplicated to single fetch
+- **CssCache**: Caches parsed CSS FontFace lists
+   - `getOrLoad()`: Gets from cache or fetches+parses
+   - Concurrent requests for same CSS deduplicated to single fetch+parse
 - Helper functions for parsing font descriptors and creating Compose fonts
+
+**Request Deduplication Pattern:**
+
+```kotlin
+val deferred = mutex.withLock {
+   cache[url]?.let { return@withLock it }
+   async { fetchData(url) }.also { cache[url] = it }
+}
+return deferred.await()
+```
+
+When 10 composables mount simultaneously and all request the same font, only 1 network request occurs.
 
 #### 5. UrlUtils (URL Resolution)
 **File**: `UrlUtils.kt`
@@ -426,13 +460,23 @@ Problem: Compose's FontFamily can only select one font at render time, causing c
 
 Solution: Use AnnotatedString with per-character FontFamily assignments. Each FontFamily contains only one font slice, ensuring correct selection.
 
-**Why Global Cache?**
+**Why Global Cache with Request Deduplication?**
 
-Font data is expensive to load (network + parsing). Global cache ensures:
-- Fonts loaded only once per session
-- Multiple SubsetText instances share loaded fonts
+Font and CSS data are expensive to load (network + parsing). Without request deduplication:
+
+- 10 `SubsetText` instances mounting simultaneously = 10 identical network requests
+- Race condition: all see cache empty, all fetch the same resource
+
+Global cache with request deduplication ensures:
+
+- Fonts and CSS loaded only once per session
+- Concurrent requests for same URL result in single network fetch
+- Multiple SubsetText instances share loaded resources
 - Memory reused efficiently
-- Thread-safe via Mutex
+- Thread-safe via Mutex + Deferred pattern
+
+Implementation: Uses `Deferred<T>` stored in cache so first request starts fetch, subsequent requests await the same
+`Deferred`.
 
 **Why Character-by-Character?**
 

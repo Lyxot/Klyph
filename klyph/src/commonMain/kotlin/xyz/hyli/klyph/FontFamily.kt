@@ -75,14 +75,13 @@ fun SubsetFontProvider(
  * Fetches and parses CSS font descriptions from a URL.
  *
  * Automatically resolves relative URLs in the CSS against the CSS file's URL.
+ * Results are cached globally to avoid redundant requests.
  *
  * @param url The URL of the CSS file.
  * @return A list of FontFace objects parsed from the CSS with resolved URLs.
  */
 suspend fun getFontCssDescription(url: String): List<FontFace> {
-    val res = httpClient.get(url)
-    val body = res.body<String>()
-    return parseCssToObjects(body, baseUrl = url)
+    return CssCache.getOrLoad(url)
 }
 
 /**
