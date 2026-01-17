@@ -3,12 +3,15 @@
 kotlin = "2.3.0"
 maven-publish = "0.34.0"
 compose = "1.10.0"
+material3 = "1.9.0"
 kotlinx-coroutines = "1.10.2"
 ktor = "3.3.3"
 kotlinx-browser = "0.5.0"
 
 [libraries]
 
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose" }
+compose-material3 = { group = "org.jetbrains.compose.material3", name = "material3", version.ref = "material3" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinx-coroutines" }
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }

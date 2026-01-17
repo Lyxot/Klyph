@@ -36,10 +36,8 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.ui)
-            implementation(compose.foundation)
-            implementation(compose.material3)
+            implementation(libs.compose.ui)
+            implementation(libs.compose.material3)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.js)
             implementation(libs.ktor.client.logging)
