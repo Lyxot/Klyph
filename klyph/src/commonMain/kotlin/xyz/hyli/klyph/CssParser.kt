@@ -34,9 +34,9 @@ fun parseCssToDescriptors(css: String, baseUrl: String? = null): List<ParsedFont
     // https://npm.webcache.cn/misans-webfont/misans-style.css
 
     // Strip all /* ... */ comments from the entire CSS string
-    val cssNoComments = css.replace(Regex("""(?s)/\*.*?\*/"""), "")
+    val cssNoComments = css.replace(Regex("""/\*[\s\S]*?\*/"""), "")
 
-    val fontFaceRegex = """@font-face\s*\{([^{}]+)}""".toRegex()
+    val fontFaceRegex = """@font-face\s*\{([^{}]+)\}""".toRegex()
     val fontFaceBlocks = fontFaceRegex.findAll(cssNoComments)
     val descriptors = mutableListOf<ParsedFontDescriptor>()
 
