@@ -43,7 +43,6 @@ kotlin {
             implementation(libs.kotlinx.coroutines.test)
         }
     }
-
 }
 
 //Publishing your Kotlin Multiplatform library to Maven Central

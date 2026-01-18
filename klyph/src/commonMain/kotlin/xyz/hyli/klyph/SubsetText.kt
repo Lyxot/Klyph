@@ -230,7 +230,7 @@ private fun rememberSubsetAnnotatedString(
     // Parse CSS and cache the font descriptors
     val allDescriptors by produceState(emptyList(), cssUrl) {
         try {
-            value = getFontCssDescription(cssUrl)
+            value = CssCache.getOrLoad(cssUrl)
         } catch (e: Exception) {
             println("ERROR: Failed to load CSS from $cssUrl: ${e.message}")
             value = emptyList()
@@ -288,8 +288,7 @@ private fun rememberSubsetAnnotatedString(
         missingDescriptors.forEach { descriptor ->
             launch {
                 try {
-                    val fontData = FontSliceCache.getOrLoad(descriptor.url)
-                    val font = createFontFromData(fontData, descriptor)
+                    val font = FontSliceCache.getOrLoad(descriptor)
                     descriptorToFontFamily += (descriptor to FontFamily(font))
                 } catch (e: Exception) {
                     println("ERROR: Failed to load font from ${descriptor.url}: ${e.message}")

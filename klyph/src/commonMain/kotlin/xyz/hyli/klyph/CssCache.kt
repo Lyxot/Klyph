@@ -16,15 +16,14 @@
 
 package xyz.hyli.klyph
 
-import io.ktor.client.call.*
 import io.ktor.client.request.*
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
+import io.ktor.client.statement.*
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import xyz.hyli.klyph.CssCache.clear
 
 /**
  * Global cache for CSS files with request deduplication.
@@ -45,13 +44,13 @@ import kotlinx.coroutines.sync.withLock
 object CssCache {
     private val cache = mutableMapOf<String, Deferred<List<ParsedFontDescriptor>>>()
     private val mutex = Mutex()
-    private val _size = MutableStateFlow(0)
+    private val _descriptors = MutableStateFlow<Map<String, List<ParsedFontDescriptor>>>(emptyMap())
 
     /**
-     * The current number of cached CSS files.
+     * The list of all parsed font descriptors currently in the cache.
      */
-    val size: StateFlow<Int>
-        get() = _size
+    val descriptors: StateFlow<Map<String, List<ParsedFontDescriptor>>>
+        get() = _descriptors
 
     /**
      * Gets parsed CSS font descriptors from cache or fetches and parses if not cached.
@@ -72,7 +71,7 @@ object CssCache {
             async {
                 try {
                     val res = httpClient.get(url)
-                    val body = res.body<String>()
+                    val body = res.bodyAsText()
                     parseCssToDescriptors(body, baseUrl = url)
                 } catch (e: Exception) {
                     // Remove from cache on error so retry is possible
@@ -81,11 +80,14 @@ object CssCache {
                 }
             }.also {
                 cache[url] = it
-                _size.value = cache.size
             }
         }
 
-        deferred.await()
+        deferred.await().also {
+            _descriptors.value = _descriptors.value.toMutableMap().apply {
+                put(url, it)
+            }
+        }
     }
 
     /**
@@ -94,23 +96,19 @@ object CssCache {
     suspend fun clear() {
         mutex.withLock {
             cache.clear()
-            _size.value = 0
+            _descriptors.value = emptyMap()
         }
     }
-}
 
-/**
- * Fetches and parses CSS font descriptions from a URL.
- *
- * Automatically resolves relative URLs in the CSS against the CSS file's URL.
- * Results are cached globally to avoid redundant requests.
- *
- * This is a convenience function that delegates to [CssCache.getOrLoad].
- *
- * @param url The URL of the CSS file.
- * @return A list of ParsedFontDescriptor objects parsed from the CSS with resolved URLs.
- * @throws Exception if fetching or parsing fails.
- */
-suspend fun getFontCssDescription(url: String): List<ParsedFontDescriptor> {
-    return CssCache.getOrLoad(url)
+    /**
+     * Calls [clear] in a fire-and-forget way, without suspending.
+     *
+     * Launches a coroutine on the default dispatcher to clear the cache asynchronously.
+     */
+    @OptIn(DelicateCoroutinesApi::class)
+    fun clearAsync() {
+        GlobalScope.launch {
+            clear()
+        }
+    }
 }

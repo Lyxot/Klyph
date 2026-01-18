@@ -16,15 +16,15 @@
 
 package xyz.hyli.klyph
 
-import io.ktor.client.call.*
+import androidx.compose.ui.text.font.Font
 import io.ktor.client.request.*
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.async
-import kotlinx.coroutines.coroutineScope
+import io.ktor.client.statement.*
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import xyz.hyli.klyph.FontSliceCache.clear
 
 /**
  * Global cache for loaded font slices with request deduplication.
@@ -49,15 +49,15 @@ import kotlinx.coroutines.sync.withLock
  * only 1 request is made and all 10 instances share the result.
  */
 object FontSliceCache {
-    private val cache = mutableMapOf<String, Deferred<ByteArray>>()
+    private val cache = mutableMapOf<String, Deferred<Font>>()
     private val mutex = Mutex()
-    private val _size = MutableStateFlow(0)
+    private val _descriptors = MutableStateFlow<Map<String, ParsedFontDescriptor>>(emptyMap())
 
     /**
-     * The current number of cached font slices.
+     * The list of all parsed font descriptors currently in the cache.
      */
-    val size: StateFlow<Int>
-        get() = _size
+    val descriptors: StateFlow<Map<String, ParsedFontDescriptor>>
+        get() = _descriptors
 
     /**
      * Gets font data from cache or loads it from the URL if not cached.
@@ -70,7 +70,8 @@ object FontSliceCache {
      * @return The font data as ByteArray.
      * @throws Exception if fetching fails.
      */
-    suspend fun getOrLoad(url: String): ByteArray = coroutineScope {
+    suspend fun getOrLoad(descriptor: ParsedFontDescriptor): Font = coroutineScope {
+        val url = descriptor.url
         val deferred = mutex.withLock {
             // Check if already in cache or being fetched
             cache[url]?.let { return@withLock it }
@@ -79,7 +80,8 @@ object FontSliceCache {
             async {
                 try {
                     val res = httpClient.get(url)
-                    res.body<ByteArray>()
+                    val fontData = res.bodyAsBytes()
+                    createFontFromData(fontData, descriptor)
                 } catch (e: Exception) {
                     // Remove from cache on error so retry is possible
                     mutex.withLock { cache.remove(url) }
@@ -87,27 +89,30 @@ object FontSliceCache {
                 }
             }.also {
                 cache[url] = it
-                _size.value = cache.size
             }
         }
 
-        deferred.await()
+        deferred.await().also {
+            _descriptors.value = _descriptors.value.toMutableMap().apply {
+                put(url, descriptor)
+            }
+        }
     }
 
     /**
-     * Preloads multiple font URLs into the cache.
+     * Preloads multiple font descriptors into the cache.
      *
      * This can be useful for warming the cache with commonly-used font slices
      * before they're actually needed, improving perceived performance.
      *
-     * @param urls The list of URLs to preload.
+     * @param descriptors The list of font descriptors to preload.
      */
-    suspend fun preload(urls: List<String>) {
-        urls.forEach { url ->
+    suspend fun preload(descriptors: List<ParsedFontDescriptor>) {
+        descriptors.forEach { descriptor ->
             try {
-                getOrLoad(url)
+                getOrLoad(descriptor)
             } catch (e: Exception) {
-                println("ERROR: Failed to preload font from $url: ${e.message}")
+                println("ERROR: Failed to preload font from ${descriptor.url}: ${e.message}")
             }
         }
     }
@@ -118,7 +123,19 @@ object FontSliceCache {
     suspend fun clear() {
         mutex.withLock {
             cache.clear()
-            _size.value = 0
+            _descriptors.value = emptyMap()
+        }
+    }
+
+    /**
+     * Calls [clear] in a fire-and-forget way, without suspending.
+     *
+     * Launches a coroutine on the default dispatcher to clear the cache asynchronously.
+     */
+    @OptIn(DelicateCoroutinesApi::class)
+    fun clearAsync() {
+        GlobalScope.launch {
+            clear()
         }
     }
 }
