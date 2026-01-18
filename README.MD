@@ -1,8 +1,13 @@
 # Klyph
 
+[![CI/CD](https://github.com/Lyxot/Klyph/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Lyxot/Klyph/actions/workflows/ci-cd.yml)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 **Intelligent Font Subsetting for Compose Multiplatform**
 
 Klyph is a Kotlin Multiplatform library that brings web-style font subsetting to Compose applications. It dramatically reduces font loading overhead by fetching only the specific character slices needed for your text, making it ideal for applications using large font files like Chinese, Japanese, or Korean typefaces.
+
+**[View Live Demo →](https://Lyxot.github.io/Klyph/)**
 
 ## Features
 
