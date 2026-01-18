@@ -125,6 +125,7 @@ private fun extractUrlFromSrc(srcValue: String): String? {
  * @return The corresponding FontWeight, defaulting to Normal if parsing fails.
  */
 private fun parseFontWeight(weightStr: String?): FontWeight {
+    // TODO: support variable font weights like "300 700"
     return when (weightStr?.lowercase()) {
         "normal" -> FontWeight.Normal
         "bold" -> FontWeight.Bold

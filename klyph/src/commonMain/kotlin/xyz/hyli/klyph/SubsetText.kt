@@ -240,9 +240,17 @@ private fun rememberSubsetAnnotatedString(
     // Filter descriptors by requested weight and style
     val descriptors = remember(allDescriptors, requestedWeight, requestedStyle) {
         allDescriptors.filter { descriptor ->
-            val weightMatches = requestedWeight == null || descriptor.weight == requestedWeight
-            val styleMatches = requestedStyle == null || descriptor.style == requestedStyle
-            weightMatches && styleMatches
+            isWeightMatching(requestedWeight, descriptor.weight) &&
+                    isStyleMatching(requestedStyle, descriptor.style)
+        }.let {
+            if (it.isEmpty() && requestedStyle == FontStyle.Italic) {
+                // Fallback: ignore style if no matching italic fonts found
+                allDescriptors.filter { descriptor ->
+                    isWeightMatching(requestedWeight, descriptor.weight)
+                }
+            } else {
+                it
+            }
         }
     }
 
@@ -341,3 +349,19 @@ private fun findDescriptor(
         descriptor.unicodeRanges.isEmpty() || isCharInRanges(char, descriptor.unicodeRanges)
     }
 }
+
+/**
+ * Checks if the requested font weight matches the actual font weight.
+ *
+ * If [requested] is null, it matches any [actual] weight.
+ */
+private fun isWeightMatching(requested: FontWeight?, actual: FontWeight): Boolean =
+    requested == null || requested == actual
+
+/**
+ * Checks if the requested font style matches the actual font style.
+ *
+ * If [requested] is null, it matches any [actual] style.
+ */
+private fun isStyleMatching(requested: FontStyle?, actual: FontStyle): Boolean =
+    requested == null || requested == actual
