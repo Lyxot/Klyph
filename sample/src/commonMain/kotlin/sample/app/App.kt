@@ -19,29 +19,41 @@ package sample.app
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import xyz.hyli.klyph.*
+import xyz.hyli.klyph.CssCache
+import xyz.hyli.klyph.FontSliceCache
+import xyz.hyli.klyph.SubsetFontProvider
+import xyz.hyli.klyph.SubsetText
 
-// Example CSS URL with font subsetting (uses unicode-range)
-// This is a Google Fonts style CSS that serves font slices based on unicode ranges
-// Note: Klyph automatically resolves relative URLs in the CSS file (e.g., url(./font.woff2))
-const val cssUrl = "https://chinese-fonts-cdn.deno.dev/packages/moon-stars-kai/dist/MoonStarsKaiT-Regular/result.css"
+const val MiSansRegular = "https://npm.webcache.cn/misans-webfont@4.3.1/misans/misans-regular/result.css"
+const val MiSansBold = "https://npm.webcache.cn/misans-webfont@4.3.1/misans/misans-bold/result.css"
+const val MoonStarsKaiTRegular =
+    "https://ik.imagekit.io/fonts119/packages/moon-stars-kai/dist/MoonStarsKaiT-Regular/result.css"
 
 @Composable
 fun App() {
-    SubsetFontProvider(cssUrl = cssUrl) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+    ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
+                .fillMaxSize(0.5f)
+                .align(Alignment.TopStart)
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Spacer(modifier = Modifier)
@@ -54,159 +66,97 @@ fun App() {
 
             HorizontalDivider()
 
-            Text(
-                text = "Font Faces from CSS",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            SubsetFontProvider(MiSansRegular) {
+                // Demo 1: Basic font subsetting
+                Text(
+                    text = "Demo 1: Basic Font Subsetting",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
 
-            var fontDescriptors by remember { mutableStateOf<List<ParsedFontDescriptor>>(emptyList()) }
-            val fontCacheSize by FontSliceCache.size.collectAsState()
-            val cssCacheSize by CssCache.size.collectAsState()
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Chinese text - will only load font slices for these specific characters
+                    // Note: No cssUrl parameter needed - it's provided by the SubsetFontProvider scope!
+                    SubsetText(
+                        text = "Chinese: 你好世界！这是中文字体",
+                        fontSize = 16.sp
+                    )
 
-            LaunchedEffect(Unit) {
-                try {
-                    fontDescriptors = getFontCssDescription(cssUrl)
-                } catch (e: Exception) {
-                    println("Error fetching font CSS description: ${e.message}")
-                }
-            }
+                    // Mixed text - loads slices for both Chinese and Latin characters
+                    SubsetText(
+                        text = "Mixed: Hello 世界! Klyph is awesome!",
+                        fontSize = 16.sp
+                    )
 
-            Text(
-                text = "Loaded ${fontDescriptors.size} font descriptors from CSS",
-                fontSize = 14.sp
-            )
-            Text(
-                text = "Font cache: $fontCacheSize slices | CSS cache: $cssCacheSize files",
-                fontSize = 14.sp
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                fontDescriptors.take(3).forEach { descriptor ->
-                    Text(
-                        text = "• ${descriptor.fontFamily} | Weight: ${descriptor.weight.weight} | Unicode ranges: ${
-                            if (descriptor.unicodeRanges.isEmpty()) "all"
-                            else descriptor.unicodeRanges.take(3).joinToString(", ") {
-                                it.toString()
-                            }
-                        }" + if (descriptor.unicodeRanges.size > 3) "..." else "",
-                        fontSize = 12.sp
+                    // Numbers and punctuation
+                    SubsetText(
+                        text = "Numbers: 0123456789 ,.!?;:()[]",
+                        fontSize = 16.sp
                     )
                 }
-                if (fontDescriptors.size > 3) {
-                    Text(
-                        text = "... and ${fontDescriptors.size - 3} more",
-                        fontSize = 12.sp
+
+                HorizontalDivider()
+
+                // Demo 2: More examples
+                Text(
+                    text = "Demo 2: Mixed Language Text",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SubsetText(
+                        text = "完美渲染中英文混排 Perfect mixed text rendering!",
+                        fontSize = 16.sp
+                    )
+
+                    SubsetText(
+                        text = "支持多种样式 Supports multiple styles",
+                        fontStyle = FontStyle.Italic,
+                        fontSize = 16.sp,
+                    )
+
+                    // Bold text example
+                    SubsetText(
+                        text = "粗体文字 Bold Chinese",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        cssUrl = MiSansBold
+                    )
+
+                    SubsetText(
+                        text = "每个字符都能正确显示 Every character renders correctly 123",
+                        fontSize = 14.sp
                     )
                 }
-            }
 
-            HorizontalDivider()
+                HorizontalDivider()
 
-            // Demo 1: Basic font subsetting
-            Text(
-                text = "Demo 1: Basic Font Subsetting",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Chinese text - will only load font slices for these specific characters
-                // Note: No cssUrl parameter needed - it's provided by the SubsetFontProvider scope!
-                SubsetText(
-                    text = "Chinese: 你好世界！这是中文字体",
-                    fontSize = 16.sp
+                // Demo 3: Large Text Content
+                Text(
+                    text = "Demo 3: Large Text Content",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold
                 )
 
-                // Mixed text - loads slices for both Chinese and Latin characters
-                SubsetText(
-                    text = "Mixed: Hello 世界! Klyph is awesome!",
-                    fontSize = 16.sp
-                )
-
-                // Numbers and punctuation
-                SubsetText(
-                    text = "Numbers: 0123456789 ,.!?;:()[]",
-                    fontSize = 16.sp
-                )
-
-                // Bold text example
-                SubsetText(
-                    text = "粗体文字 Bold Chinese",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            HorizontalDivider()
-
-            // Demo 2: More examples
-            Text(
-                text = "Demo 2: Mixed Language Text",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                SubsetText(
-                    text = "完美渲染中英文混排 Perfect mixed text rendering!",
-                    fontSize = 16.sp
-                )
-
-                SubsetText(
-                    text = "支持多种样式 Supports multiple styles",
-                    fontStyle = FontStyle.Italic,
-                    fontSize = 16.sp,
-                )
-
-                SubsetText(
-                    text = "每个字符都能正确显示 Every character renders correctly 123",
-                    fontSize = 14.sp
-                )
-            }
-
-            HorizontalDivider()
-
-            // Demo 3: Large Text Content
-            Text(
-                text = "Demo 3: Large Text Content",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SubsetText(
-                    text = """
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SubsetText(
+                        text = """
                         Klyph
 
-                        传统的 Compose 字体加载方式存在明显的性能瓶颈。当应用需要渲染中文、日文或韩文等东亚文字时，
-                        往往需要下载完整的字体文件。这些字体文件通常包含数万个字符，体积可达 10-15 MB，
-                        即使应用只需要显示其中的几十个汉字。这种做法不仅浪费带宽，还会显著延长页面加载时间，
-                        影响用户体验。Klyph 通过引入智能字体子集化技术，彻底解决了这一问题。
+                        传统的 Compose 字体加载方式存在明显的性能瓶颈。当应用需要渲染中文、日文或韩文等东亚文字时，往往需要下载完整的字体文件。这些字体文件通常包含数万个字符，体积可达 10-15 MB，即使应用只需要显示其中的几十个汉字。这种做法不仅浪费带宽，还会显著延长页面加载时间，影响用户体验。Klyph 通过引入智能字体子集化技术，彻底解决了这一问题。
 
                         The Traditional Font Loading Problem
 
-                        In traditional web and mobile applications, rendering CJK (Chinese, Japanese, Korean)
-                        text requires downloading entire font files containing tens of thousands of glyphs.
-                        A typical Chinese font file weighs 10-15 MB per weight, yet most applications only
-                        display a few hundred unique characters. This approach wastes bandwidth, slows down
-                        page loads, and degrades user experience, especially on mobile networks.
+                        In traditional web and mobile applications, rendering CJK (Chinese, Japanese, Korean) text requires downloading entire font files containing tens of thousands of glyphs. A typical Chinese font file weighs 10-15 MB per weight, yet most applications only display a few hundred unique characters. This approach wastes bandwidth, slows down page loads, and degrades user experience, especially on mobile networks.
 
                         Klyph 的技术创新
 
-                        Klyph 采用了与现代网页开发相同的字体切片技术。它会解析 CSS 文件中的 @font-face 规则，
-                        识别每个字体切片所覆盖的 Unicode 范围，然后分析文本内容，确定需要哪些字符。
-                        随后，系统仅下载包含这些字符的字体切片，而不是整个字体文件。这种按需加载的策略
-                        可以将数据传输量减少 99% 以上，显著提升应用性能。
+                        Klyph 采用了与现代网页开发相同的字体切片技术。它会解析 CSS 文件中的 @font-face 规则，识别每个字体切片所覆盖的 Unicode 范围，然后分析文本内容，确定需要哪些字符。随后，系统仅下载包含这些字符的字体切片，而不是整个字体文件。这种按需加载的策略可以将数据传输量减少 99% 以上，显著提升应用性能。
 
                         How Klyph Works
 
-                        Klyph parses CSS @font-face rules with unicode-range descriptors, analyzes your text
-                        to identify required characters, and loads only the necessary font slices on demand.
-                        This intelligent approach reduces data transfer by over 99%, transforming a 12 MB
-                        download into just 50-100 KB for typical usage scenarios. The system employs global
-                        caching with request deduplication, ensuring each font slice is loaded only once
-                        even when multiple components request it simultaneously.
+                        Klyph parses CSS @font-face rules with unicode-range descriptors, analyzes your text to identify required characters, and loads only the necessary font slices on demand. This intelligent approach reduces data transfer by over 99%, transforming a 12 MB download into just 50-100 KB for typical usage scenarios. The system employs global caching with request deduplication, ensuring each font slice is loaded only once even when multiple components request it simultaneously.
 
                         核心架构优势：
 
@@ -224,31 +174,133 @@ fun App() {
                         • Scoped API pattern provides type-safe, ergonomic interface
                         • Zero-configuration design works out of the box
 
-                        实际应用场景：假设你的应用需要显示一段包含 200 个不同汉字的文本。传统方式需要下载
-                        12 MB 的完整字体文件。而使用 Klyph，系统会自动识别这 200 个字符，仅下载对应的
-                        字体切片（通常为 80-120 KB），数据量减少了 99.2%。更重要的是，当用户浏览应用的
-                        其他页面时，已加载的字体切片会被复用，实现零延迟渲染。
+                        实际应用场景：假设你的应用需要显示一段包含 200 个不同汉字的文本。传统方式需要下载 12 MB 的完整字体文件。而使用 Klyph，系统会自动识别这 200 个字符，仅下载对应的字体切片（通常为 80-120 KB），数据量减少了 99.2%。更重要的是，当用户浏览应用的其他页面时，已加载的字体切片会被复用，实现零延迟渲染。
 
-                        Real-World Impact: Consider an app displaying 200 unique Chinese characters.
-                        Traditional loading requires a 12 MB download. Klyph automatically identifies
-                        these characters and loads only the relevant slices (typically 80-120 KB),
-                        reducing data transfer by 99.2%. As users navigate through the app, cached
-                        font slices are reused, enabling instant rendering with zero additional downloads.
+                        Real-World Impact: Consider an app displaying 200 unique Chinese characters. Traditional loading requires a 12 MB download. Klyph automatically identifies these characters and loads only the relevant slices (typically 80-120 KB), reducing data transfer by 99.2%. As users navigate through the app, cached font slices are reused, enabling instant rendering with zero additional downloads.
                     """.trimIndent(),
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp
-                )
+                        fontSize = 14.sp,
+                        lineHeight = 20.sp,
+                        cssUrl = MoonStarsKaiTRegular
+                    )
 
-                Text(
-                    text = "This large text demonstrates efficient loading of mixed CJK and Latin characters. " +
-                            "Notice how only the specific font slices needed for these characters are loaded, " +
-                            "not the entire multi-megabyte font file.",
-                    fontSize = 12.sp
-                )
+                    Text(
+                        text = "This large text demonstrates efficient loading of mixed CJK and Latin characters. " +
+                                "Notice how only the specific font slices needed for these characters are loaded, " +
+                                "not the entire multi-megabyte font file.",
+                        fontSize = 12.sp
+                    )
+                }
             }
 
+            Spacer(modifier = Modifier)
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth(0.5f)
+                .align(Alignment.TopEnd)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Spacer(modifier = Modifier)
+            Text(
+                text = "Stats",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold
+            )
+
+            HorizontalDivider()
+
+            Text(
+                text = "Font Faces from CSS",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            val fontDescriptors by CssCache.descriptors.collectAsState()
+
+            Text(
+                text = "Loaded ${fontDescriptors.values.flatten().size} font descriptors from CSS",
+                fontSize = 14.sp
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                fontDescriptors.forEach { (url, descriptors) ->
+                    Text(
+                        text = "From CSS: $url",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    descriptors.take(3).forEach { descriptor ->
+                        Text(
+                            text = "• ${descriptor.fontFamily} | Weight: ${descriptor.weight.weight} | Style: ${descriptor.style} | Unicode ranges: ${
+                                if (descriptor.unicodeRanges.isEmpty()) "all"
+                                else descriptor.unicodeRanges.joinToString(", ")
+                            }",
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontSize = 12.sp
+                        )
+                    }
+                    if (descriptors.size > 3) {
+                        Text(
+                            text = "... and ${descriptors.size - 3} more",
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider()
+
+            Text(
+                text = "Cache Stats",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            val cachedFontDescriptors by FontSliceCache.descriptors.collectAsState()
+            val fontCacheSize = cachedFontDescriptors.size
+            val cssCacheSize = fontDescriptors.size
+
+            Text(
+                text = "Font cache: $fontCacheSize slices | CSS cache: $cssCacheSize files",
+                fontSize = 14.sp
+            )
+
+            val cssReceivedBytes by CssCache.receivedBytes.collectAsState()
+            val fontReceivedBytes by FontSliceCache.receivedBytes.collectAsState()
+            Text(
+                text = "Total data received: ${(cssReceivedBytes + fontReceivedBytes) / 1024} KB (estimated)",
+                fontSize = 14.sp
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                cachedFontDescriptors.forEach { (url, descriptor) ->
+                    Text(
+                        text = "• ${descriptor.fontFamily} | Weight: ${descriptor.weight.weight} | Style: ${descriptor.style} | URL: $url",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 12.sp
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier)
+        }
+
+        FloatingActionButton(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(16.dp),
+            onClick = {
+                CssCache.clearAsync()
+                FontSliceCache.clearAsync()
+            }
+        ) {
+            Text(
+                text = "Clear Cache",
+                modifier = Modifier.padding(4.dp),
+            )
         }
     }
 }

@@ -30,6 +30,9 @@ import androidx.compose.ui.text.font.FontWeight
  * @return A list of [ParsedFontDescriptor] objects found in the CSS.
  */
 fun parseCssToDescriptors(css: String, baseUrl: String? = null): List<ParsedFontDescriptor> {
+    // TODO: Handle @import rules in CSS files
+    // https://npm.webcache.cn/misans-webfont/misans-style.css
+
     // Strip all /* ... */ comments from the entire CSS string
     val cssNoComments = css.replace(Regex("""(?s)/\*.*?\*/"""), "")
 
