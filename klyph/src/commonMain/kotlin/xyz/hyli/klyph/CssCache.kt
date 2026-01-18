@@ -18,6 +18,7 @@ package xyz.hyli.klyph
 
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.http.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -45,12 +46,19 @@ object CssCache {
     private val cache = mutableMapOf<String, Deferred<List<ParsedFontDescriptor>>>()
     private val mutex = Mutex()
     private val _descriptors = MutableStateFlow<Map<String, List<ParsedFontDescriptor>>>(emptyMap())
+    private val _receivedBytes = MutableStateFlow(0L)
 
     /**
      * The list of all parsed font descriptors currently in the cache.
      */
     val descriptors: StateFlow<Map<String, List<ParsedFontDescriptor>>>
         get() = _descriptors
+
+    /**
+     * The total number of bytes received from CSS fetches.
+     */
+    val receivedBytes: StateFlow<Long>
+        get() = _receivedBytes
 
     /**
      * Gets parsed CSS font descriptors from cache or fetches and parses if not cached.
@@ -72,6 +80,7 @@ object CssCache {
                 try {
                     val res = httpClient.get(url)
                     val body = res.bodyAsText()
+                    _receivedBytes.value += res.contentLength() ?: res.bodyAsBytes().size.toLong()
                     parseCssToDescriptors(body, baseUrl = url)
                 } catch (e: Exception) {
                     // Remove from cache on error so retry is possible

@@ -19,6 +19,7 @@ package xyz.hyli.klyph
 import androidx.compose.ui.text.font.Font
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.http.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -52,12 +53,19 @@ object FontSliceCache {
     private val cache = mutableMapOf<String, Deferred<Font>>()
     private val mutex = Mutex()
     private val _descriptors = MutableStateFlow<Map<String, ParsedFontDescriptor>>(emptyMap())
+    private val _receivedBytes = MutableStateFlow(0L)
 
     /**
      * The list of all parsed font descriptors currently in the cache.
      */
     val descriptors: StateFlow<Map<String, ParsedFontDescriptor>>
         get() = _descriptors
+
+    /**
+     * The total number of bytes received for font slice downloads.
+     */
+    val receivedBytes: StateFlow<Long>
+        get() = _receivedBytes
 
     /**
      * Gets font data from cache or loads it from the URL if not cached.
@@ -81,6 +89,7 @@ object FontSliceCache {
                 try {
                     val res = httpClient.get(url)
                     val fontData = res.bodyAsBytes()
+                    _receivedBytes.value += res.contentLength() ?: fontData.size.toLong()
                     createFontFromData(fontData, descriptor)
                 } catch (e: Exception) {
                     // Remove from cache on error so retry is possible
