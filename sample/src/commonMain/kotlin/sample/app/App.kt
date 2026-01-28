@@ -32,15 +32,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import xyz.hyli.klyph.CssCache
-import xyz.hyli.klyph.FontSliceCache
-import xyz.hyli.klyph.SubsetFontProvider
-import xyz.hyli.klyph.SubsetText
-
-const val MiSansRegular = "https://npm.webcache.cn/misans-webfont@4.3.1/misans/misans-regular/result.css"
-const val MiSansBold = "https://npm.webcache.cn/misans-webfont@4.3.1/misans/misans-bold/result.css"
-const val MoonStarsKaiTRegular =
-    "https://ik.imagekit.io/fonts119/packages/moon-stars-kai/dist/MoonStarsKaiT-Regular/result.css"
+import sample.app.fonts.MiSansBoldBaseUrl
+import sample.app.fonts.MiSansBoldCssContent
+import sample.app.fonts.MiSansRegular
+import sample.app.fonts.MoonStarsKaiTRegular
+import xyz.hyli.klyph.*
 
 @Composable
 fun App() {
@@ -66,7 +62,7 @@ fun App() {
 
             HorizontalDivider()
 
-            SubsetFontProvider(MiSansRegular) {
+            SubsetFontProvider(provider = CssUrlFontDescriptorProvider(MiSansRegular)) {
                 // Demo 1: Basic font subsetting
                 Text(
                     text = "Demo 1: Basic Font Subsetting",
@@ -121,7 +117,7 @@ fun App() {
                         text = "粗体文字 Bold Chinese",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        cssUrl = MiSansBold
+                        provider = CssContentFontDescriptorProvider(MiSansBoldCssContent, MiSansBoldBaseUrl)
                     )
 
                     SubsetText(
@@ -180,7 +176,7 @@ fun App() {
                     """.trimIndent(),
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
-                        cssUrl = MoonStarsKaiTRegular
+                        provider = CssUrlFontDescriptorProvider(MoonStarsKaiTRegular)
                     )
 
                     Text(

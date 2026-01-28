@@ -25,15 +25,15 @@ import androidx.compose.ui.text.platform.Font as PlatformFont
  * Represents a parsed font descriptor with all metadata needed to load and apply a font slice.
  *
  * This class contains all the information needed to load and apply a specific font slice,
- * including the font URL, family name, weight, style, and unicode ranges it covers.
+ * including the font URL, family name, weight, style, and Unicode ranges it covers.
  *
  * @property url The URL of the font resource.
  * @property fontFamily The name of the font family.
  * @property weight The font weight (e.g., Normal, Bold, or custom weight).
  * @property style The font style (Normal or Italic).
- * @property unicodeRanges The list of unicode ranges this font slice covers.
+ * @property unicodeRanges The list of Unicode ranges this font slice covers.
  */
-data class ParsedFontDescriptor(
+data class FontDescriptor(
     val url: String,
     val fontFamily: String,
     val weight: FontWeight,
@@ -51,7 +51,7 @@ data class ParsedFontDescriptor(
  * @param descriptor The parsed font descriptor with metadata.
  * @return A Compose Font instance ready to be used in a FontFamily.
  */
-fun createFontFromData(data: ByteArray, descriptor: ParsedFontDescriptor): Font {
+fun createFontFromData(data: ByteArray, descriptor: FontDescriptor): Font {
     return PlatformFont(
         identity = "${descriptor.fontFamily}-${descriptor.weight.weight}-${descriptor.style}-${descriptor.url}",
         data = data,

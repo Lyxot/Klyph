@@ -58,19 +58,18 @@ commonMain.dependencies {
 Use `SubsetText` within a `SubsetFontProvider` scope for automatic font subsetting:
 
 ```kotlin
-import xyz.hyli.klyph.SubsetFontProvider
-import xyz.hyli.klyph.SubsetText
+import xyz.hyli.klyph.*
 
 @Composable
 fun MyApp() {
-    SubsetFontProvider(cssUrl = "https://fonts.googleapis.com/css2?family=Noto+Sans+SC") {
-        // SubsetText automatically gets cssUrl from the scope - no need to pass it!
+    SubsetFontProvider(provider = CssUrlFontDescriptorProvider("https://fonts.googleapis.com/css2?family=Noto+Sans+SC")) {
+        // SubsetText automatically gets font descriptors from the provider - no need to pass it!
         SubsetText(
             text = "你好世界 Hello World",
             fontSize = 20.sp
         )
 
-        // Multiple SubsetText calls share the same CSS URL
+        // Multiple SubsetText calls share the same provider
         SubsetText(
             text = "Another text 另一段文字",
             fontSize = 16.sp,
@@ -81,25 +80,27 @@ fun MyApp() {
 ```
 
 **Key Benefits of Scoped API:**
-- `SubsetText` is a scoped function within `SubsetFontProvider` - no cssUrl parameter needed!
+
+- `SubsetText` is a scoped function within `SubsetFontProvider` - no provider parameter needed!
 - Type-safe: SubsetText only works within the provider scope
 - Clean API: Similar to how `Row`, `Column` provide scoped modifiers
+- Flexible: Provider interface allows CSS URL, CSS content, or custom descriptor sources
 
 `SubsetText` works similarly to Material3's `Text` with a compatible API. It automatically:
 - Analyzes each character in your text
 - Loads only the necessary font slices
 - Applies the correct font to each character using `AnnotatedString`
 
-### Direct CSS URL Usage (Without Provider)
+### Direct Provider Usage (Without Scope)
 
-You can also specify the CSS URL directly for one-off usage:
+You can also provide a FontDescriptorProvider directly for one-off usage:
 
 ```kotlin
 @Composable
 fun MyComponent() {
     SubsetText(
-        text = "你好世界 Direct CSS loading",
-        cssUrl = "https://example.com/fonts.css",
+       text = "你好世界 Direct provider usage",
+       provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css"),
         fontSize = 16.sp
     )
 }
@@ -112,7 +113,7 @@ fun MyComponent() {
 ```kotlin
 @Composable
 fun StyledText() {
-    SubsetFontProvider(cssUrl = "https://example.com/fonts.css") {
+   SubsetFontProvider(provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css")) {
         SubsetText(
             text = "粗体文字 Bold Text",
             fontSize = 18.sp,
@@ -130,28 +131,39 @@ fun StyledText() {
 
 Compose's `FontFamily` can only select **one** font from a provided list at a time. When you have multiple font slices (e.g., one for Latin characters, one for Chinese characters), Compose will only use one of them, leaving characters from other slices blank.
 
-### Klyph's Solution: Scoped API + Character-Level Font Application
+### Klyph's Solution: Provider Interface + Scoped API + Character-Level Font Application
 
-Klyph uses a scoped API pattern (similar to `Row`/`Column`) combined with character-level font application:
+Klyph uses a provider interface pattern combined with scoped API and character-level font application:
+
+**Provider Interface:**
+
+- `FontDescriptorProvider` interface abstracts font descriptor sources
+- `CssUrlFontDescriptorProvider` - loads descriptors from CSS URL
+- `CssContentFontDescriptorProvider` - parses descriptors from CSS content string
+- Extensible: create custom providers for other descriptor sources
 
 **Scoped API Benefits:**
-- `SubsetFontProvider` creates a `SubsetFontScope`
+
+- `SubsetFontProvider` creates a `SubsetFontScope` with the provider
 - `SubsetText` is an extension function on the scope
-- CSS URL is captured once and reused by all SubsetText calls
+- Provider is captured once and reused by all SubsetText calls
 - Type-safe: SubsetText only available within the provider
 - Clean, ergonomic API without parameter repetition
 
 **Character-Level Font Application:**
 Klyph's `SubsetText` solves the FontFamily limitation by applying fonts character-by-character:
 
-1. **CSS Parsing**: Fetches and parses CSS files containing `@font-face` rules with `unicode-range` descriptors
-2. **URL Resolution**: Relative URLs in CSS (like `url(./font.woff2)`) are automatically resolved against the CSS file's base URL
-3. **Character Analysis**: Analyzes each character in your text and groups consecutive characters using the same font
-4. **Range Matching**: Each character is matched against unicode-range values to determine which font slice it needs
-5. **Lazy Loading**: Only the matched font slices are fetched from the network (or cache)
-6. **AnnotatedString Building**: Builds an `AnnotatedString` where each character span gets its own `FontFamily` (containing only one font slice)
-7. **Rendering**: The standard Text composable renders the AnnotatedString with proper font assignments
-8. **Global Caching**: Once a font slice or CSS file is loaded, it's cached globally for the session with request
+1. **Provider Loading**: FontDescriptorProvider supplies parsed font descriptors
+2. **CSS Parsing**: CSS providers fetch and parse `@font-face` rules with `unicode-range` descriptors
+3. **URL Resolution**: Relative URLs in CSS (like `url(./font.woff2)`) are automatically resolved against the CSS file's
+   base URL
+4. **Character Analysis**: Analyzes each character in your text and groups consecutive characters using the same font
+5. **Range Matching**: Each character is matched against unicode-range values to determine which font slice it needs
+6. **Lazy Loading**: Only the matched font slices are fetched from the network (or cache)
+7. **AnnotatedString Building**: Builds an `AnnotatedString` where each character span gets its own `FontFamily` (
+   containing only one font slice)
+8. **Rendering**: The standard Text composable renders the AnnotatedString with proper font assignments
+9. **Global Caching**: Once a font slice or CSS file is loaded, it's cached globally for the session with request
    deduplication
 
 This approach allows "Hello 你好" to render "Hello" with the Latin font slice and "你好" with the Chinese font slice,
@@ -169,29 +181,60 @@ Klyph supports all standard CSS unicode-range formats:
 
 ### Core Components
 
+#### `FontDescriptorProvider` (Interface)
+
+```kotlin
+interface FontDescriptorProvider {
+    suspend fun getDescriptors(): List<FontDescriptor>
+}
+```
+
+Interface for providing parsed font descriptors from various sources. Implementations include:
+
+**`CssUrlFontDescriptorProvider`** - Loads descriptors from a CSS URL:
+
+```kotlin
+val provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css")
+```
+
+**`CssContentFontDescriptorProvider`** - Parses descriptors from CSS content string (with caching):
+
+```kotlin
+val provider = CssContentFontDescriptorProvider("""
+    @font-face {
+        font-family: 'MyFont';
+        src: url('font.woff2');
+        unicode-range: U+0-FF;
+    }
+""", baseUrl = "https://example.com/")
+```
+
+Note: Results are cached using a hash of the content, so repeated calls with the same CSS content won't re-parse.
+
 #### `SubsetFontProvider` (Scope Provider)
 
 ```kotlin
 @Composable
 fun SubsetFontProvider(
-    cssUrl: String,
+    provider: FontDescriptorProvider,
     fontFamily: FontFamily? = null,
     content: @Composable SubsetFontScope.() -> Unit
 )
 ```
 
-Provides a CSS URL scope for font subsetting. Creates a `SubsetFontScope` where the scoped `SubsetText` function is available.
+Provides a FontDescriptorProvider scope for font subsetting. Creates a `SubsetFontScope` where the scoped `SubsetText`
+function is available.
 
 **Parameters:**
 
-- `cssUrl`: The URL of the CSS file containing @font-face rules
+- `provider`: The FontDescriptorProvider that supplies parsed font descriptors
 - `fontFamily`: Optional fallback FontFamily for characters not covered by subset fonts
 - `content`: Composable content within the SubsetFontScope
 
 **Usage:**
 ```kotlin
-SubsetFontProvider(cssUrl = "https://example.com/fonts.css") {
-    // Within this scope, SubsetText doesn't need cssUrl parameter
+SubsetFontProvider(provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css")) {
+    // Within this scope, SubsetText doesn't need provider parameter
     SubsetText(text = "Hello 世界", fontSize = 20.sp)
 }
 ```
@@ -211,25 +254,27 @@ fun SubsetFontScope.SubsetText(
 A scoped function available within `SubsetFontProvider` that automatically loads and applies font slices character-by-character. This is the **recommended way** to use Klyph.
 
 **Features:**
-- Scoped to `SubsetFontProvider` - automatically gets CSS URL from scope
+
+- Scoped to `SubsetFontProvider` - automatically gets provider from scope
 - Compatible with Material3's `Text` API for most common use cases
 - Automatically matches characters to font slices via unicode-range
 - Builds AnnotatedString with per-character font assignments
 - Supports standard Text parameters (color, fontSize, fontWeight, etc.)
 - Type-safe: Only available within provider scope
 
-#### `SubsetText` (Standalone - With cssUrl)
+#### `SubsetText` (Standalone - With Provider)
 
 ```kotlin
 @Composable
 fun SubsetText(
     text: String,
     // ... all standard Text parameters ...
-    cssUrl: String
+    provider: FontDescriptorProvider
 ): Unit
 ```
 
-Standalone version that requires explicit CSS URL. Use this for one-off cases outside of `SubsetFontProvider`.
+Standalone version that requires explicit FontDescriptorProvider. Use this for one-off cases outside of
+`SubsetFontProvider`.
 
 #### `rememberSubsetAnnotatedString` (Low-level API)
 
@@ -247,14 +292,16 @@ fun SubsetFontScope.rememberSubsetAnnotatedString(
 ```kotlin
 @Composable
 fun rememberSubsetAnnotatedString(
-    cssUrl: String,
+    descriptors: List<FontDescriptor>,
     text: String,
     requestedWeight: FontWeight? = null,
     requestedStyle: FontStyle? = null
 ): AnnotatedString
 ```
 
-Low-level composable that provides direct access to the AnnotatedString building process. Use this when you need more control than `SubsetText` provides.
+Low-level composable that provides direct access to the AnnotatedString building process. Use this when you need more
+control than `SubsetText` provides. The standalone version accepts a list of parsed font descriptors, allowing you to
+use any descriptor source (not just CSS).
 
 **Use Cases:**
 - Building custom composables that use subset fonts
@@ -266,7 +313,7 @@ Low-level composable that provides direct access to the AnnotatedString building
 ```kotlin
 @Composable
 fun CustomSubsetText() {
-    SubsetFontProvider(cssUrl = "https://example.com/fonts.css") {
+   SubsetFontProvider(provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css")) {
         val annotatedString = rememberSubsetAnnotatedString(
             text = "Hello 世界",
             requestedWeight = FontWeight.Normal,
@@ -287,8 +334,13 @@ fun CustomSubsetText() {
 ```kotlin
 @Composable
 fun CustomSubsetText() {
-    val annotatedString = rememberSubsetAnnotatedString(
-        cssUrl = "https://example.com/fonts.css",
+   // Fetch and cache font descriptors from CSS
+   val descriptors by produceState(emptyList(), cssUrl) {
+      value = CssCache.getOrLoad("https://example.com/fonts.css")
+   }
+
+   val annotatedString = rememberSubsetAnnotatedString(
+      descriptors = descriptors,
         text = "Hello 世界",
         requestedWeight = FontWeight.Normal,
         requestedStyle = FontStyle.Normal
@@ -318,10 +370,10 @@ Global cache for loaded font slices with request deduplication and monitoring:
 
 ```kotlin
 object FontSliceCache {
-   val descriptors: StateFlow<Map<String, ParsedFontDescriptor>>  // All cached font descriptors
+   val descriptors: StateFlow<Map<String, FontDescriptor>>  // All cached font descriptors
    val receivedBytes: StateFlow<Long>                              // Total bytes downloaded
-   suspend fun getOrLoad(descriptor: ParsedFontDescriptor): Font   // Gets from cache or fetches
-   suspend fun preload(descriptors: List<ParsedFontDescriptor>)    // Preloads multiple fonts
+   suspend fun getOrLoad(descriptor: FontDescriptor): Font   // Gets from cache or fetches
+   suspend fun preload(descriptors: List<FontDescriptor>)    // Preloads multiple fonts
    suspend fun clear()                                             // Clears all cached fonts (suspend)
    fun clearAsync()                                                // Clears cache asynchronously (fire-and-forget)
 }
@@ -343,9 +395,9 @@ Global cache for parsed CSS files with request deduplication and monitoring:
 
 ```kotlin
 object CssCache {
-   val descriptors: StateFlow<Map<String, List<ParsedFontDescriptor>>>  // All cached CSS descriptors
+   val descriptors: StateFlow<Map<String, List<FontDescriptor>>>  // All cached CSS descriptors
    val receivedBytes: StateFlow<Long>                                    // Total bytes downloaded
-   suspend fun getOrLoad(url: String): List<ParsedFontDescriptor>        // Gets from cache or fetches+parses
+   suspend fun getOrLoad(url: String): List<FontDescriptor>        // Gets from cache or fetches+parses
    suspend fun clear()                                                   // Clears all cached CSS (suspend)
    fun clearAsync()                                                      // Clears cache asynchronously (fire-and-forget)
 }

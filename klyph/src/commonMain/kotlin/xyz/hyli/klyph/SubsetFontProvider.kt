@@ -24,41 +24,41 @@ import androidx.compose.ui.text.font.FontFamily
  * Scope for [SubsetFontProvider] that provides access to scoped SubsetText function.
  *
  * This scope follows the same pattern as Compose's built-in scopes like RowScope and ColumnScope.
- * Within this scope, you can use SubsetText without specifying the cssUrl parameter - it's
+ * Within this scope, you can use SubsetText without specifying the provider parameter - it's
  * automatically provided from the scope.
  *
  * Example:
  * ```
- * SubsetFontProvider(cssUrl = "https://example.com/fonts.css") {
+ * SubsetFontProvider(provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css")) {
  *     // 'this' is SubsetFontScope
- *     SubsetText("Hello 世界") // No cssUrl needed!
- *     SubsetText("More text") // Reuses the same CSS URL
+ *     SubsetText("Hello 世界") // No provider needed!
+ *     SubsetText("More text") // Reuses the same provider
  * }
  * ```
  *
- * @property cssUrl The CSS URL provided by SubsetFontProvider, used by scoped SubsetText calls.
+ * @property provider The FontDescriptorProvider used by scoped SubsetText calls.
  * @property fontFamily Optional fallback FontFamily for characters not covered by subset fonts.
  */
 class SubsetFontScope internal constructor(
-    internal val cssUrl: String,
+    internal val provider: FontDescriptorProvider,
     internal val fontFamily: FontFamily?
 )
 
 /**
- * Provides a CSS URL context for font subsetting within the content scope.
+ * Provides a FontDescriptorProvider context for font subsetting within the content scope.
  *
- * Within this scope, you can use [SubsetText] without specifying the cssUrl parameter.
- * The CSS URL is automatically provided from the scope.
+ * Within this scope, you can use [SubsetText] without specifying the provider parameter.
+ * The provider is automatically provided from the scope.
  *
  * This is the recommended way to use Klyph for font subsetting, as it:
- * - Eliminates repetitive cssUrl parameters
+ * - Eliminates repetitive provider parameters
  * - Provides type-safe scoped API
  * - Follows familiar Compose patterns (similar to Row/Column)
- * - Enables all SubsetText calls within the scope to share the same CSS cache
+ * - Enables all SubsetText calls within the scope to share the same provider
  *
  * Example:
  * ```
- * SubsetFontProvider(cssUrl = "https://example.com/fonts.css") {
+ * SubsetFontProvider(provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css")) {
  *     SubsetText(
  *         text = "你好世界 Hello World",
  *         fontSize = 20.sp
@@ -71,19 +71,19 @@ class SubsetFontScope internal constructor(
  * }
  * ```
  *
- * @param cssUrl The URL of the CSS file containing @font-face rules with unicode-range.
+ * @param provider The FontDescriptorProvider that supplies parsed font descriptors.
  * @param fontFamily Optional fallback FontFamily for characters not covered by subset fonts.
  * @param content The composable content within the SubsetFontScope.
  */
 @Composable
 fun SubsetFontProvider(
-    cssUrl: String,
+    provider: FontDescriptorProvider,
     fontFamily: FontFamily? = null,
     content: @Composable SubsetFontScope.() -> Unit
 ) {
-    val scope = remember(cssUrl, fontFamily) {
+    val scope = remember(provider, fontFamily) {
         SubsetFontScope(
-            cssUrl = cssUrl,
+            provider = provider,
             fontFamily = fontFamily
         )
     }

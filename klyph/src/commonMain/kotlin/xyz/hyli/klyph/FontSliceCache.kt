@@ -52,13 +52,13 @@ import xyz.hyli.klyph.FontSliceCache.clear
 object FontSliceCache {
     private val cache = mutableMapOf<String, Deferred<Font>>()
     private val mutex = Mutex()
-    private val _descriptors = MutableStateFlow<Map<String, ParsedFontDescriptor>>(emptyMap())
+    private val _descriptors = MutableStateFlow<Map<String, FontDescriptor>>(emptyMap())
     private val _receivedBytes = MutableStateFlow(0L)
 
     /**
      * The list of all parsed font descriptors currently in the cache.
      */
-    val descriptors: StateFlow<Map<String, ParsedFontDescriptor>>
+    val descriptors: StateFlow<Map<String, FontDescriptor>>
         get() = _descriptors
 
     /**
@@ -78,7 +78,7 @@ object FontSliceCache {
      * @return The font data as ByteArray.
      * @throws Exception if fetching fails.
      */
-    suspend fun getOrLoad(descriptor: ParsedFontDescriptor): Font = coroutineScope {
+    suspend fun getOrLoad(descriptor: FontDescriptor): Font = coroutineScope {
         val url = descriptor.url
         val deferred = mutex.withLock {
             // Check if already in cache or being fetched
@@ -116,7 +116,7 @@ object FontSliceCache {
      *
      * @param descriptors The list of font descriptors to preload.
      */
-    suspend fun preload(descriptors: List<ParsedFontDescriptor>) {
+    suspend fun preload(descriptors: List<FontDescriptor>) {
         descriptors.forEach { descriptor ->
             try {
                 getOrLoad(descriptor)

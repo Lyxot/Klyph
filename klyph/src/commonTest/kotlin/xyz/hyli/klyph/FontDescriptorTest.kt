@@ -25,8 +25,8 @@ import kotlin.test.assertNotEquals
 class FontDescriptorTest {
 
     @Test
-    fun testParsedFontDescriptorCreation() {
-        val descriptor = ParsedFontDescriptor(
+    fun testFontDescriptorCreation() {
+        val descriptor = FontDescriptor(
             url = "https://example.com/font.woff2",
             fontFamily = "Test Font",
             weight = FontWeight.Normal,
@@ -42,13 +42,13 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorWithUnicodeRanges() {
+    fun testFontDescriptorWithUnicodeRanges() {
         val ranges = listOf(
             UnicodeRange(0x0000, 0x00FF),
             UnicodeRange(0x4E00, 0x9FFF)
         )
 
-        val descriptor = ParsedFontDescriptor(
+        val descriptor = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Multi-Script Font",
             weight = FontWeight(400),
@@ -62,8 +62,8 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorEquality() {
-        val descriptor1 = ParsedFontDescriptor(
+    fun testFontDescriptorEquality() {
+        val descriptor1 = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -71,7 +71,7 @@ class FontDescriptorTest {
             unicodeRanges = emptyList()
         )
 
-        val descriptor2 = ParsedFontDescriptor(
+        val descriptor2 = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -83,8 +83,8 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorInequality() {
-        val descriptor1 = ParsedFontDescriptor(
+    fun testFontDescriptorInequality() {
+        val descriptor1 = FontDescriptor(
             url = "font1.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -92,7 +92,7 @@ class FontDescriptorTest {
             unicodeRanges = emptyList()
         )
 
-        val descriptor2 = ParsedFontDescriptor(
+        val descriptor2 = FontDescriptor(
             url = "font2.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -104,8 +104,8 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorWithDifferentWeights() {
-        val descriptorNormal = ParsedFontDescriptor(
+    fun testFontDescriptorWithDifferentWeights() {
+        val descriptorNormal = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -113,7 +113,7 @@ class FontDescriptorTest {
             unicodeRanges = emptyList()
         )
 
-        val descriptorBold = ParsedFontDescriptor(
+        val descriptorBold = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Bold,
@@ -125,8 +125,8 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorWithDifferentStyles() {
-        val descriptorNormal = ParsedFontDescriptor(
+    fun testFontDescriptorWithDifferentStyles() {
+        val descriptorNormal = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -134,7 +134,7 @@ class FontDescriptorTest {
             unicodeRanges = emptyList()
         )
 
-        val descriptorItalic = ParsedFontDescriptor(
+        val descriptorItalic = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -146,8 +146,8 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorHashCode() {
-        val descriptor1 = ParsedFontDescriptor(
+    fun testFontDescriptorHashCode() {
+        val descriptor1 = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -155,7 +155,7 @@ class FontDescriptorTest {
             unicodeRanges = emptyList()
         )
 
-        val descriptor2 = ParsedFontDescriptor(
+        val descriptor2 = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -168,8 +168,8 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorCopy() {
-        val original = ParsedFontDescriptor(
+    fun testFontDescriptorCopy() {
+        val original = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -186,8 +186,8 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorWithCustomWeight() {
-        val descriptor = ParsedFontDescriptor(
+    fun testFontDescriptorWithCustomWeight() {
+        val descriptor = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight(350),
@@ -200,7 +200,7 @@ class FontDescriptorTest {
 
     @Test
     fun testCreateFontFromDataGeneratesUniqueIdentity() {
-        val descriptor1 = ParsedFontDescriptor(
+        val descriptor1 = FontDescriptor(
             url = "font1.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -208,7 +208,7 @@ class FontDescriptorTest {
             unicodeRanges = emptyList()
         )
 
-        val descriptor2 = ParsedFontDescriptor(
+        val descriptor2 = FontDescriptor(
             url = "font2.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -228,7 +228,7 @@ class FontDescriptorTest {
 
     @Test
     fun testCreateFontFromDataPreservesWeight() {
-        val descriptor = ParsedFontDescriptor(
+        val descriptor = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Bold,
@@ -244,7 +244,7 @@ class FontDescriptorTest {
 
     @Test
     fun testCreateFontFromDataPreservesStyle() {
-        val descriptor = ParsedFontDescriptor(
+        val descriptor = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -259,8 +259,8 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorUsedAsMapKey() {
-        val descriptor1 = ParsedFontDescriptor(
+    fun testFontDescriptorUsedAsMapKey() {
+        val descriptor1 = FontDescriptor(
             url = "font1.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -268,7 +268,7 @@ class FontDescriptorTest {
             unicodeRanges = emptyList()
         )
 
-        val descriptor2 = ParsedFontDescriptor(
+        val descriptor2 = FontDescriptor(
             url = "font2.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -276,7 +276,7 @@ class FontDescriptorTest {
             unicodeRanges = emptyList()
         )
 
-        val map = mutableMapOf<ParsedFontDescriptor, String>()
+        val map = mutableMapOf<FontDescriptor, String>()
         map[descriptor1] = "Font 1"
         map[descriptor2] = "Font 2"
 
@@ -286,9 +286,9 @@ class FontDescriptorTest {
     }
 
     @Test
-    fun testParsedFontDescriptorListReference() {
+    fun testFontDescriptorListReference() {
         val ranges = mutableListOf(UnicodeRange(0x0, 0xFF))
-        val descriptor = ParsedFontDescriptor(
+        val descriptor = FontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
@@ -296,7 +296,7 @@ class FontDescriptorTest {
             unicodeRanges = ranges
         )
 
-        // Note: ParsedFontDescriptor holds a reference to the original list
+        // Note: FontDescriptor holds a reference to the original list
         // Modifying original list will affect descriptor (current behavior)
         ranges.add(UnicodeRange(0x100, 0x1FF))
 

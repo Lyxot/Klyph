@@ -18,10 +18,13 @@ package xyz.hyli.klyph
 
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.*
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -35,7 +38,7 @@ import androidx.compose.ui.unit.TextUnit
  * and applies them character-by-character.
  *
  * This is the recommended way to use Klyph for font subsetting. It's fully compatible with
- * the standard Material3 Text API and automatically uses the CSS URL from the
+ * the standard Material3 Text API and automatically uses the provider from the
  * [SubsetFontProvider] scope.
  *
  * Internally builds an AnnotatedString where each character gets the appropriate font slice
@@ -45,7 +48,7 @@ import androidx.compose.ui.unit.TextUnit
  *
  * Example:
  * ```
- * SubsetFontProvider(cssUrl = "https://example.com/fonts.css") {
+ * SubsetFontProvider(provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css")) {
  *     SubsetText(
  *         text = "Hello 世界!",
  *         fontSize = 20.sp,
@@ -109,14 +112,14 @@ fun SubsetFontScope.SubsetText(
     minLines = minLines,
     onTextLayout = onTextLayout,
     style = style,
-    cssUrl = cssUrl
+    provider = provider
 )
 
 
 /**
  * A Text composable that automatically loads font slices and applies them character-by-character.
  *
- * This is a standalone version that requires an explicit CSS URL. For better ergonomics,
+ * This is a standalone version that requires an explicit FontDescriptorProvider. For better ergonomics,
  * prefer using the scoped version within [SubsetFontProvider].
  *
  * This composable is fully compatible with the standard Material3 Text API. It internally
@@ -131,7 +134,7 @@ fun SubsetFontScope.SubsetText(
  * ```
  * SubsetText(
  *     text = "Hello 世界!",
- *     cssUrl = "https://example.com/fonts.css",
+ *     provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css"),
  *     fontSize = 20.sp
  * )
  * ```
@@ -153,7 +156,7 @@ fun SubsetFontScope.SubsetText(
  * @param minLines The minimum number of lines.
  * @param onTextLayout Callback for text layout result.
  * @param style The text style to apply.
- * @param cssUrl The URL of the CSS file containing @font-face rules with unicode-range.
+ * @param provider The FontDescriptorProvider that supplies parsed font descriptors.
  */
 @Composable
 fun SubsetText(
@@ -174,11 +177,21 @@ fun SubsetText(
     minLines: Int = 1,
     onTextLayout: (TextLayoutResult) -> Unit = {},
     style: TextStyle = LocalTextStyle.current,
-    cssUrl: String
+    provider: FontDescriptorProvider
 ) {
+    // Fetch and cache the font descriptors from provider
+    val descriptors by produceState(emptyList(), provider) {
+        try {
+            value = provider.getDescriptors()
+        } catch (e: Exception) {
+            println("ERROR: Failed to load descriptors from provider: ${e.message}")
+            value = emptyList()
+        }
+    }
+
     // Build annotated string with per-character font slices
     val annotatedString = rememberSubsetAnnotatedString(
-        cssUrl = cssUrl,
+        descriptors = descriptors,
         text = text,
         requestedWeight = fontWeight,
         requestedStyle = fontStyle

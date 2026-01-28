@@ -19,6 +19,7 @@ package xyz.hyli.klyph
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
+import io.ktor.utils.io.core.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,15 +44,15 @@ import xyz.hyli.klyph.CssCache.clear
  * to the cache across multiple coroutines.
  */
 object CssCache {
-    private val cache = mutableMapOf<String, Deferred<List<ParsedFontDescriptor>>>()
+    private val cache = mutableMapOf<String, Deferred<List<FontDescriptor>>>()
     private val mutex = Mutex()
-    private val _descriptors = MutableStateFlow<Map<String, List<ParsedFontDescriptor>>>(emptyMap())
+    private val _descriptors = MutableStateFlow<Map<String, List<FontDescriptor>>>(emptyMap())
     private val _receivedBytes = MutableStateFlow(0L)
 
     /**
      * The list of all parsed font descriptors currently in the cache.
      */
-    val descriptors: StateFlow<Map<String, List<ParsedFontDescriptor>>>
+    val descriptors: StateFlow<Map<String, List<FontDescriptor>>>
         get() = _descriptors
 
     /**
@@ -67,34 +68,112 @@ object CssCache {
      * the same CSS URL, only one network fetch and parse occurs.
      *
      * @param url The URL of the CSS file.
-     * @return List of ParsedFontDescriptor objects parsed from the CSS.
+     * @return List of FontDescriptor objects parsed from the CSS.
      * @throws Exception if fetching or parsing fails.
      */
-    suspend fun getOrLoad(url: String): List<ParsedFontDescriptor> = coroutineScope {
-        val deferred = mutex.withLock {
-            // Check if already in cache or being fetched
-            cache[url]?.let { return@withLock it }
+    suspend fun getOrLoad(url: String): List<FontDescriptor> =
+        getOrLoad("url:$url") {
+            val res = httpClient.get(url)
+            val body = res.bodyAsText()
+            _receivedBytes.value += res.contentLength() ?: res.bodyAsBytes().size.toLong()
+            parseCssToDescriptors(body, baseUrl = url)
+        }
 
-            // Not in cache, create deferred and start fetch
+    /**
+     * Gets parsed CSS font descriptors from CSS content string, with caching.
+     *
+     * Uses a hash-based cache key to avoid reparsing the same CSS content.
+     *
+     * NOTE: This is a best-effort cache key and can theoretically collide for
+     * different CSS payloads. We accept this risk to keep the key short and
+     * computation fast; call sites that require strict content identity should
+     * avoid relying on content-based caching.
+     *
+     * @param cssContent The raw CSS content string.
+     * @param baseUrl The base URL for resolving relative URLs in the CSS.
+     * @return List of FontDescriptor objects parsed from the CSS.
+     * @throws Exception if parsing fails.
+     */
+    suspend fun getOrLoad(cssContent: String, baseUrl: String): List<FontDescriptor> =
+        getOrLoad("hash:${computeContentHash(cssContent, baseUrl)}") {
+            parseCssToDescriptors(cssContent, baseUrl)
+        }
+
+    /**
+     * Computes a fast hash of CSS content and base URL.
+     *
+     * Uses an FNV-1a inspired hash algorithm which provides:
+     * - Fast computation (single pass through the strings)
+     * - Good distribution (better collision resistance than default hashCode)
+     * - Deterministic results across platforms
+     *
+     * The hash combines both cssContent and baseUrl into a single hash value.
+     *
+     * @param cssContent The CSS content string to hash
+     * @param baseUrl The base URL to hash
+     * @return A hash string representing the combined hash of content and baseUrl
+     */
+    private fun computeContentHash(cssContent: String, baseUrl: String): String {
+        val data = "$cssContent:$baseUrl".toByteArray()
+
+        var hash = 0x811C9DC5u // FNV offset basis
+        val prime = 0x01000193u // FNV prime
+
+        for (byte in data) {
+            hash = hash xor byte.toUInt() // XOR with the current byte
+            hash *= prime // Multiply by the FNV prime
+        }
+
+        return hash.toString(16)
+    }
+
+    /**
+     * Internal helper function that implements caching and request deduplication for CSS parsing.
+     *
+     * This function is the core caching mechanism used by both [getOrLoad] and [getOrLoad].
+     * It ensures that:
+     * - Multiple concurrent requests for the same cache key share a single parse operation
+     * - Results are cached for subsequent requests
+     * - Failed operations are removed from cache to allow retries
+     *
+     * **Request Deduplication:**
+     * When multiple concurrent calls request the same cache key, only one parse operation
+     * is executed via the [parseBlock], and all callers await the same [Deferred] result.
+     *
+     * **Cache Key:**
+     * - For URL-based CSS: "url:" prefix and the URL itself is used as the cache key
+     * - For content-based CSS: a hash-based key in the format "hash:{hashValue}"
+     *
+     * @param cacheKey Unique key for this cache entry (URL or hash-based key for content)
+     * @param parseBlock Suspend function that performs the actual parsing/fetching operation
+     * @return List of FontDescriptor objects from cache or newly parsed
+     * @throws Exception if the parseBlock throws, the error is propagated and cache entry is removed
+     */
+    private suspend fun getOrLoad(
+        cacheKey: String,
+        parseBlock: suspend () -> List<FontDescriptor>
+    ): List<FontDescriptor> = coroutineScope {
+        val deferred = mutex.withLock {
+            // Check if already in cache or being parsed
+            cache[cacheKey]?.let { return@withLock it }
+
+            // Not in cache, create deferred and start parse
             async {
                 try {
-                    val res = httpClient.get(url)
-                    val body = res.bodyAsText()
-                    _receivedBytes.value += res.contentLength() ?: res.bodyAsBytes().size.toLong()
-                    parseCssToDescriptors(body, baseUrl = url)
+                    parseBlock()
                 } catch (e: Exception) {
                     // Remove from cache on error so retry is possible
-                    mutex.withLock { cache.remove(url) }
+                    mutex.withLock { cache.remove(cacheKey) }
                     throw e
                 }
             }.also {
-                cache[url] = it
+                cache[cacheKey] = it
             }
         }
 
         deferred.await().also {
             _descriptors.value = _descriptors.value.toMutableMap().apply {
-                put(url, it)
+                put(cacheKey, it)
             }
         }
     }

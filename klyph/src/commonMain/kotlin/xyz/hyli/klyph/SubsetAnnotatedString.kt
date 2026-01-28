@@ -27,8 +27,8 @@ import androidx.compose.ui.text.withStyle
 import kotlinx.coroutines.launch
 
 /**
- * Scoped version of [rememberSubsetAnnotatedString] that automatically uses the CSS URL from
- * [SubsetFontProvider] scope.
+ * Scoped version of [rememberSubsetAnnotatedString] that automatically fetches font descriptors
+ * from the provider in [SubsetFontProvider] scope.
  *
  * This is a low-level composable for direct AnnotatedString access within a [SubsetFontProvider].
  * Use this when you need more control than [SubsetText] provides, such as:
@@ -39,7 +39,7 @@ import kotlinx.coroutines.launch
  *
  * Example:
  * ```kotlin
- * SubsetFontProvider(cssUrl = "https://example.com/fonts.css") {
+ * SubsetFontProvider(provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css")) {
  *     val annotatedString = rememberSubsetAnnotatedString(
  *         text = "Hello 世界",
  *         requestedWeight = FontWeight.Normal,
@@ -66,8 +66,18 @@ fun SubsetFontScope.rememberSubsetAnnotatedString(
     requestedWeight: FontWeight? = null,
     requestedStyle: FontStyle? = null
 ): AnnotatedString {
+    // Fetch and cache the font descriptors from provider
+    val allDescriptors by produceState(emptyList(), provider) {
+        try {
+            value = provider.getDescriptors()
+        } catch (e: Exception) {
+            println("ERROR: Failed to load descriptors from provider: ${e.message}")
+            value = emptyList()
+        }
+    }
+
     return rememberSubsetAnnotatedString(
-        cssUrl = this.cssUrl,
+        descriptors = allDescriptors,
         text = text,
         requestedWeight = requestedWeight,
         requestedStyle = requestedStyle
@@ -86,19 +96,21 @@ fun SubsetFontScope.rememberSubsetAnnotatedString(
  * - Applying additional styling to the AnnotatedString
  *
  * The function:
- * 1. Fetches and parses the CSS to get font face definitions
- * 2. Filters descriptors by requested weight and style
- * 3. Analyzes the text to produce font intervals (runs of text using the same font)
- * 4. Loads the necessary font slices on-demand
- * 5. Builds an AnnotatedString where each interval gets its FontFamily
+ * 1. Filters descriptors by requested weight and style
+ * 2. Analyzes the text to produce font intervals (runs of text using the same font)
+ * 3. Loads the necessary font slices on-demand
+ * 4. Builds an AnnotatedString where each interval gets its FontFamily
  *
  * Characters without matching font slices will be rendered without any font assignment
  * (using the system default or fallback font you provide when rendering).
  *
  * Example:
  * ```kotlin
+ * val descriptors by produceState(emptyList(), cssUrl) {
+ *     value = CssCache.getOrLoad(cssUrl)
+ * }
  * val annotatedString = rememberSubsetAnnotatedString(
- *     cssUrl = "https://example.com/fonts.css",
+ *     descriptors = descriptors,
  *     text = "Hello 世界",
  *     requestedWeight = FontWeight.Normal,
  *     requestedStyle = FontStyle.Normal
@@ -109,7 +121,7 @@ fun SubsetFontScope.rememberSubsetAnnotatedString(
  * )
  * ```
  *
- * @param cssUrl The URL of the CSS file containing @font-face rules.
+ * @param descriptors The list of parsed font descriptors to use.
  * @param text The text to render.
  * @param requestedWeight The desired font weight, or null to match any weight.
  * @param requestedStyle The desired font style, or null to match any style.
@@ -117,30 +129,20 @@ fun SubsetFontScope.rememberSubsetAnnotatedString(
  */
 @Composable
 fun rememberSubsetAnnotatedString(
-    cssUrl: String,
+    descriptors: List<FontDescriptor>,
     text: String,
     requestedWeight: FontWeight? = null,
     requestedStyle: FontStyle? = null
 ): AnnotatedString {
-    // Parse CSS and cache the font descriptors
-    val allDescriptors by produceState(emptyList(), cssUrl) {
-        try {
-            value = CssCache.getOrLoad(cssUrl)
-        } catch (e: Exception) {
-            println("ERROR: Failed to load CSS from $cssUrl: ${e.message}")
-            value = emptyList()
-        }
-    }
-
     // Filter descriptors by requested weight and style
-    val descriptors = remember(allDescriptors, requestedWeight, requestedStyle) {
-        allDescriptors.filter { descriptor ->
+    val filteredDescriptors = remember(descriptors, requestedWeight, requestedStyle) {
+        descriptors.filter { descriptor ->
             isWeightMatching(requestedWeight, descriptor.weight) &&
                     isStyleMatching(requestedStyle, descriptor.style)
         }.let {
             if (it.isEmpty() && requestedStyle == FontStyle.Italic) {
                 // Fallback: ignore style if no matching italic fonts found
-                allDescriptors.filter { descriptor ->
+                descriptors.filter { descriptor ->
                     isWeightMatching(requestedWeight, descriptor.weight)
                 }
             } else {
@@ -150,16 +152,16 @@ fun rememberSubsetAnnotatedString(
     }
 
     // Analyze text to produce intervals - Amortized O(N) time due to locality hint, O(I) space
-    val textIntervals = remember(text, descriptors) {
-        if (text.isEmpty() || descriptors.isEmpty()) {
+    val textIntervals = remember(text, filteredDescriptors) {
+        if (text.isEmpty() || filteredDescriptors.isEmpty()) {
             emptyList()
         } else {
             buildList {
                 var startIndex = 0
-                var currentDescriptor = findDescriptor(text[0], descriptors)
+                var currentDescriptor = findDescriptor(text[0], filteredDescriptors)
 
                 for (i in 1 until text.length) {
-                    val nextDescriptor = findDescriptor(text[i], descriptors, currentDescriptor)
+                    val nextDescriptor = findDescriptor(text[i], filteredDescriptors, currentDescriptor)
                     if (nextDescriptor != currentDescriptor) {
                         add(TextInterval(startIndex, i, currentDescriptor))
                         startIndex = i
@@ -173,7 +175,7 @@ fun rememberSubsetAnnotatedString(
 
     // Load fonts for each unique descriptor found in intervals
     var descriptorToFontFamily by remember {
-        mutableStateOf<Map<ParsedFontDescriptor, FontFamily>>(emptyMap())
+        mutableStateOf<Map<FontDescriptor, FontFamily>>(emptyMap())
     }
 
     LaunchedEffect(textIntervals) {
@@ -222,7 +224,7 @@ fun rememberSubsetAnnotatedString(
 private data class TextInterval(
     val start: Int,
     val end: Int,
-    val descriptor: ParsedFontDescriptor?
+    val descriptor: FontDescriptor?
 )
 
 /**
@@ -233,9 +235,9 @@ private data class TextInterval(
  */
 private fun findDescriptor(
     char: Char,
-    descriptors: List<ParsedFontDescriptor>,
-    hint: ParsedFontDescriptor? = null
-): ParsedFontDescriptor? {
+    descriptors: List<FontDescriptor>,
+    hint: FontDescriptor? = null
+): FontDescriptor? {
     if (hint != null && (hint.unicodeRanges.isEmpty() || isCharInRanges(char, hint.unicodeRanges))) {
         return hint
     }
