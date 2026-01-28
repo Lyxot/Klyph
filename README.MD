@@ -231,6 +231,76 @@ fun SubsetText(
 
 Standalone version that requires explicit CSS URL. Use this for one-off cases outside of `SubsetFontProvider`.
 
+#### `rememberSubsetAnnotatedString` (Low-level API)
+
+**Scoped version (Recommended):**
+```kotlin
+@Composable
+fun SubsetFontScope.rememberSubsetAnnotatedString(
+    text: String,
+    requestedWeight: FontWeight? = null,
+    requestedStyle: FontStyle? = null
+): AnnotatedString
+```
+
+**Standalone version:**
+```kotlin
+@Composable
+fun rememberSubsetAnnotatedString(
+    cssUrl: String,
+    text: String,
+    requestedWeight: FontWeight? = null,
+    requestedStyle: FontStyle? = null
+): AnnotatedString
+```
+
+Low-level composable that provides direct access to the AnnotatedString building process. Use this when you need more control than `SubsetText` provides.
+
+**Use Cases:**
+- Building custom composables that use subset fonts
+- Combining multiple AnnotatedStrings
+- Using the result in non-Text contexts
+- Applying additional styling to the AnnotatedString
+
+**Example (Scoped):**
+```kotlin
+@Composable
+fun CustomSubsetText() {
+    SubsetFontProvider(cssUrl = "https://example.com/fonts.css") {
+        val annotatedString = rememberSubsetAnnotatedString(
+            text = "Hello 世界",
+            requestedWeight = FontWeight.Normal,
+            requestedStyle = FontStyle.Normal
+        )
+
+        // Use the AnnotatedString however you like
+        Text(
+            text = annotatedString,
+            fontFamily = myFallbackFont, // Fallback for unmapped characters
+            modifier = Modifier.clickable { /* custom behavior */ }
+        )
+    }
+}
+```
+
+**Example (Standalone):**
+```kotlin
+@Composable
+fun CustomSubsetText() {
+    val annotatedString = rememberSubsetAnnotatedString(
+        cssUrl = "https://example.com/fonts.css",
+        text = "Hello 世界",
+        requestedWeight = FontWeight.Normal,
+        requestedStyle = FontStyle.Normal
+    )
+
+    Text(
+        text = annotatedString,
+        fontFamily = myFallbackFont
+    )
+}
+```
+
 ### Utility Functions and Caches
 
 #### `getFontCssDescription`

@@ -29,7 +29,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
-import kotlinx.coroutines.launch
 
 /**
  * A Text composable within [SubsetFontProvider] scope that automatically loads font slices
@@ -112,6 +111,7 @@ fun SubsetFontScope.SubsetText(
     style = style,
     cssUrl = cssUrl
 )
+
 
 /**
  * A Text composable that automatically loads font slices and applies them character-by-character.
@@ -204,163 +204,3 @@ fun SubsetText(
         style = style
     )
 }
-
-/**
- * Remembers and builds an AnnotatedString with character-level font slice assignments.
- *
- * This function:
- * 1. Fetches and parses the CSS to get font face definitions
- * 2. Analyzes the text to produce font intervals (runs of text using the same font)
- * 3. Loads the necessary font slices
- * 4. Builds an AnnotatedString where each interval gets its FontFamily
- *
- * @param cssUrl The URL of the CSS file containing @font-face rules.
- * @param text The text to render.
- * @param requestedWeight The desired font weight.
- * @param requestedStyle The desired font style.
- * @return An AnnotatedString with proper font assignments.
- */
-@Composable
-private fun rememberSubsetAnnotatedString(
-    cssUrl: String,
-    text: String,
-    requestedWeight: FontWeight?,
-    requestedStyle: FontStyle?
-): AnnotatedString {
-    // Parse CSS and cache the font descriptors
-    val allDescriptors by produceState(emptyList(), cssUrl) {
-        try {
-            value = CssCache.getOrLoad(cssUrl)
-        } catch (e: Exception) {
-            println("ERROR: Failed to load CSS from $cssUrl: ${e.message}")
-            value = emptyList()
-        }
-    }
-
-    // Filter descriptors by requested weight and style
-    val descriptors = remember(allDescriptors, requestedWeight, requestedStyle) {
-        allDescriptors.filter { descriptor ->
-            isWeightMatching(requestedWeight, descriptor.weight) &&
-                    isStyleMatching(requestedStyle, descriptor.style)
-        }.let {
-            if (it.isEmpty() && requestedStyle == FontStyle.Italic) {
-                // Fallback: ignore style if no matching italic fonts found
-                allDescriptors.filter { descriptor ->
-                    isWeightMatching(requestedWeight, descriptor.weight)
-                }
-            } else {
-                it
-            }
-        }
-    }
-
-    // Analyze text to produce intervals - Amortized O(N) time due to locality hint, O(I) space
-    val textIntervals = remember(text, descriptors) {
-        if (text.isEmpty() || descriptors.isEmpty()) {
-            emptyList()
-        } else {
-            buildList {
-                var startIndex = 0
-                var currentDescriptor = findDescriptor(text[0], descriptors)
-
-                for (i in 1 until text.length) {
-                    val nextDescriptor = findDescriptor(text[i], descriptors, currentDescriptor)
-                    if (nextDescriptor != currentDescriptor) {
-                        add(TextInterval(startIndex, i, currentDescriptor))
-                        startIndex = i
-                        currentDescriptor = nextDescriptor
-                    }
-                }
-                add(TextInterval(startIndex, text.length, currentDescriptor))
-            }
-        }
-    }
-
-    // Load fonts for each unique descriptor found in intervals
-    var descriptorToFontFamily by remember {
-        mutableStateOf<Map<ParsedFontDescriptor, FontFamily>>(emptyMap())
-    }
-
-    LaunchedEffect(textIntervals) {
-        val uniqueDescriptors = textIntervals.mapNotNull { it.descriptor }.toSet()
-        val missingDescriptors = uniqueDescriptors.filter { it !in descriptorToFontFamily }
-
-        missingDescriptors.forEach { descriptor ->
-            launch {
-                try {
-                    val font = FontSliceCache.getOrLoad(descriptor)
-                    descriptorToFontFamily += (descriptor to FontFamily(font))
-                } catch (e: Exception) {
-                    println("ERROR: Failed to load font from ${descriptor.url}: ${e.message}")
-                }
-            }
-        }
-    }
-
-    // Build the annotated string - O(I) time
-    return remember(text, textIntervals, descriptorToFontFamily) {
-        buildAnnotatedString {
-            if (textIntervals.isEmpty() || descriptorToFontFamily.isEmpty()) {
-                append(text)
-                return@buildAnnotatedString
-            }
-
-            for (interval in textIntervals) {
-                val substring = text.substring(interval.start, interval.end)
-                val fontFamily = interval.descriptor?.let { descriptorToFontFamily[it] }
-
-                if (fontFamily != null) {
-                    withStyle(SpanStyle(fontFamily = fontFamily)) {
-                        append(substring)
-                    }
-                } else {
-                    append(substring)
-                }
-            }
-        }
-    }
-}
-
-/**
- * Represents a contiguous run of text that uses the same font descriptor.
- */
-private data class TextInterval(
-    val start: Int,
-    val end: Int,
-    val descriptor: ParsedFontDescriptor?
-)
-
-/**
- * Finds the first descriptor whose unicode-range includes this character.
- *
- * Uses an optional [hint] (typically the last used descriptor) to optimize lookup time
- * for sequential characters in the same script range from O(D) to O(1).
- */
-private fun findDescriptor(
-    char: Char,
-    descriptors: List<ParsedFontDescriptor>,
-    hint: ParsedFontDescriptor? = null
-): ParsedFontDescriptor? {
-    if (hint != null && (hint.unicodeRanges.isEmpty() || isCharInRanges(char, hint.unicodeRanges))) {
-        return hint
-    }
-    return descriptors.firstOrNull { descriptor ->
-        descriptor.unicodeRanges.isEmpty() || isCharInRanges(char, descriptor.unicodeRanges)
-    }
-}
-
-/**
- * Checks if the requested font weight matches the actual font weight.
- *
- * If [requested] is null, it matches any [actual] weight.
- */
-private fun isWeightMatching(requested: FontWeight?, actual: FontWeight): Boolean =
-    requested == null || requested == actual
-
-/**
- * Checks if the requested font style matches the actual font style.
- *
- * If [requested] is null, it matches any [actual] style.
- */
-private fun isStyleMatching(requested: FontStyle?, actual: FontStyle): Boolean =
-    requested == null || requested == actual

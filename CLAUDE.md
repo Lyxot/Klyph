@@ -8,15 +8,16 @@ Klyph is organized into focused, single-responsibility modules:
 
 ```
 xyz.hyli.klyph/
-├── SubsetText.kt           # Primary API: SubsetText composable (scoped & standalone)
-├── SubsetFontProvider.kt   # Scoped API: SubsetFontScope & SubsetFontProvider
-├── CssParser.kt            # CSS parsing: Direct CSS → ParsedFontDescriptor conversion
-├── FontDescriptor.kt       # Font metadata: Descriptor model and Font creation
-├── UnicodeRange.kt         # Character matching: Unicode range parsing and matching
-├── FontSliceCache.kt       # Caching: Font cache with deduplication & monitoring
-├── CssCache.kt             # Caching: CSS cache with deduplication & monitoring
-├── UrlUtils.kt             # Utilities: Relative URL resolution
-└── HttpClient.kt           # Platform: HTTP client expect/actual declaration
+├── SubsetText.kt                    # Primary API: SubsetText composable (scoped & standalone)
+├── RememberSubsetAnnotatedString.kt # Low-level API: rememberSubsetAnnotatedString (scoped & standalone)
+├── SubsetFontProvider.kt            # Scoped API: SubsetFontScope & SubsetFontProvider
+├── CssParser.kt                     # CSS parsing: Direct CSS → ParsedFontDescriptor conversion
+├── FontDescriptor.kt                # Font metadata: Descriptor model and Font creation
+├── UnicodeRange.kt                  # Character matching: Unicode range parsing and matching
+├── FontSliceCache.kt                # Caching: Font cache with deduplication & monitoring
+├── CssCache.kt                      # Caching: CSS cache with deduplication & monitoring
+├── UrlUtils.kt                      # Utilities: Relative URL resolution
+└── HttpClient.kt                    # Platform: HTTP client expect/actual declaration
 ```
 
 ## Core Components
@@ -25,23 +26,41 @@ xyz.hyli.klyph/
 
 **File**: `SubsetText.kt`
 
-The main user-facing composable with two variants:
+The main user-facing composable with high-level text rendering:
 
-- **Scoped**: `SubsetFontScope.SubsetText()` - No cssUrl parameter, gets it from scope
+- **Scoped**: `SubsetFontScope.SubsetText()` - No cssUrl parameter, gets it from scope (recommended)
 - **Standalone**: `SubsetText(cssUrl = ...)` - Explicit CSS URL for one-off usage
+
+Both variants wrap the standard Material3 Text composable with automatic font subsetting powered by `rememberSubsetAnnotatedString()`.
 
 **Key Functions:**
 
-- `rememberSubsetAnnotatedString()`: Builds AnnotatedString with font assignments
-- `findDescriptor()`: Finds descriptor for a character with locality hint optimization
+- `SubsetFontScope.SubsetText()`: Scoped extension function that uses CSS URL from provider scope
+- `SubsetText()`: Standalone function with explicit cssUrl parameter
+
+### 2. RememberSubsetAnnotatedString (Low-level API)
+
+**File**: `RememberSubsetAnnotatedString.kt`
+
+Low-level composable for direct AnnotatedString access with font subsetting:
+
+- **Scoped**: `SubsetFontScope.rememberSubsetAnnotatedString()` - No cssUrl parameter, gets it from scope
+- **Standalone**: `rememberSubsetAnnotatedString(cssUrl = ...)` - Explicit CSS URL for direct AnnotatedString building
+
+Use this when you need more control than SubsetText provides, such as building custom composables, combining multiple AnnotatedStrings, or applying additional styling.
+
+**Key Functions:**
+
+- `rememberSubsetAnnotatedString()`: Builds AnnotatedString with character-level font slice assignments
+- `SubsetFontScope.rememberSubsetAnnotatedString()`: Scoped extension function for direct AnnotatedString access
+- `findDescriptor()`: Finds descriptor for a character with locality hint optimization (O(D) to O(1))
 - `TextInterval`: Data class representing a contiguous run of text with the same font
+- `isWeightMatching()`, `isStyleMatching()`: Helper functions for descriptor filtering
 
 **Algorithm Optimization:**
-The character-to-font matching uses a locality hint pattern that optimizes sequential lookups from O(D) to O(1) for
-consecutive characters in the same script, where D is the number of font descriptors. This is particularly effective for
-real-world text where characters are often grouped by script (e.g., "Hello 世界 World" has 3 transitions, not 15).
+The character-to-font matching uses a locality hint pattern that optimizes sequential lookups from O(D) to O(1) for consecutive characters in the same script, where D is the number of font descriptors. This is particularly effective for real-world text where characters are often grouped by script (e.g., "Hello 世界 World" has 3 transitions, not 15).
 
-### 2. SubsetFontProvider (Scoped API)
+### 3. SubsetFontProvider (Scoped API)
 
 **File**: `SubsetFontProvider.kt`
 
@@ -67,7 +86,7 @@ fun SubsetFontProvider(
 )
 ```
 
-### 3. CssParser (CSS Parsing)
+### 4. CssParser (CSS Parsing)
 
 **File**: `CssParser.kt`
 
@@ -86,7 +105,7 @@ Parses CSS `@font-face` rules directly into ParsedFontDescriptor objects:
 - JavaScript-compatible regex patterns (uses `[\s\S]` instead of `(?s)` flag)
 - Strips CSS comments before parsing
 
-### 4. FontDescriptor (Font Metadata)
+### 5. FontDescriptor (Font Metadata)
 
 **File**: `FontDescriptor.kt`
 
@@ -102,7 +121,7 @@ Defines the core font descriptor model and font creation:
 - Used throughout the system as the single source of truth for font metadata
 - Immutable and suitable for use as cache keys
 
-### 5. UnicodeRange (Character Matching)
+### 6. UnicodeRange (Character Matching)
 
 **File**: `UnicodeRange.kt`
 
@@ -119,7 +138,7 @@ Handles unicode-range parsing and character matching:
 - Wildcard: `U+4??` → `UnicodeRange(0x400, 0x4FF)`
 - Multiple ranges: `U+0-FF, U+131, U+152-153` → List of UnicodeRange objects
 
-### 6. FontSliceCache (Font Caching)
+### 7. FontSliceCache (Font Caching)
 
 **File**: `FontSliceCache.kt`
 
@@ -161,7 +180,7 @@ suspend fun getOrLoad(descriptor: ParsedFontDescriptor): Font = coroutineScope {
 If 10 `SubsetText` instances mount simultaneously and all need the same Chinese font slice, without deduplication: 10
 network requests. With deduplication: 1 network request, all share result.
 
-### 7. CssCache (CSS Caching)
+### 8. CssCache (CSS Caching)
 
 **File**: `CssCache.kt`
 
@@ -184,7 +203,7 @@ Automatically resolves relative URLs in CSS against the CSS file's base URL duri
 - Tracks total CSS bandwidth for monitoring
 - Provides async clear for fire-and-forget cleanup
 
-### 8. UrlUtils (URL Resolution)
+### 9. UrlUtils (URL Resolution)
 
 **File**: `UrlUtils.kt`
 
@@ -203,7 +222,7 @@ resolveUrl("https://example.com/css/fonts.css", "../assets/font.woff2")
 // → "https://example.com/assets/font.woff2"
 ```
 
-### 9. HttpClient (Platform Abstraction)
+### 10. HttpClient (Platform Abstraction)
 
 **File**: `HttpClient.kt`
 
