@@ -114,12 +114,14 @@ class CssContentFontDescriptorProvider(
  * }
  * ```
  *
- * @param descriptors Variable number of font descriptors to provide.
+ * @param descriptors The list of font descriptors to provide.
  */
 class StaticFontDescriptorProvider(
-    vararg val descriptors: FontDescriptor
+    private val descriptors: List<FontDescriptor>
 ) : FontDescriptorProvider {
-    override suspend fun getDescriptors(): List<FontDescriptor> {
-        return descriptors.toList()
-    }
+    constructor(
+        vararg descriptors: FontDescriptor
+    ) : this(descriptors.toList())
+
+    override suspend fun getDescriptors(): List<FontDescriptor> = descriptors
 }
