@@ -92,3 +92,34 @@ class CssContentFontDescriptorProvider(
         return CssCache.getOrLoad(cssContent, baseUrl)
     }
 }
+
+/**
+ * Implementation of FontDescriptorProvider that provides a static list of descriptors.
+ *
+ * This provider is useful for bundled fonts loaded from Compose resources
+ * or when you have pre-constructed font descriptors that don't need fetching.
+ *
+ * Example:
+ * ```kotlin
+ * val descriptor = ResourceFontDescriptor(
+ *     resource = Res.font.my_font,
+ *     fontFamily = "MyFont",
+ *     weight = FontWeight.Normal,
+ *     style = FontStyle.Normal,
+ *     unicodeRanges = listOf(UnicodeRange(0x0, 0xFF))
+ * )
+ * val provider = StaticFontDescriptorProvider(descriptor)
+ * SubsetFontProvider(provider = provider) {
+ *     SubsetText("Hello")
+ * }
+ * ```
+ *
+ * @param descriptors Variable number of font descriptors to provide.
+ */
+class StaticFontDescriptorProvider(
+    vararg val descriptors: FontDescriptor
+) : FontDescriptorProvider {
+    override suspend fun getDescriptors(): List<FontDescriptor> {
+        return descriptors.toList()
+    }
+}

@@ -140,6 +140,7 @@ Klyph uses a provider interface pattern combined with scoped API and character-l
 - `FontDescriptorProvider` interface abstracts font descriptor sources
 - `CssUrlFontDescriptorProvider` - loads descriptors from CSS URL
 - `CssContentFontDescriptorProvider` - parses descriptors from CSS content string
+- `StaticFontDescriptorProvider` - provides a static list of pre-constructed descriptors
 - Extensible: create custom providers for other descriptor sources
 
 **Scoped API Benefits:**
@@ -210,6 +211,19 @@ val provider = CssContentFontDescriptorProvider("""
 ```
 
 Note: Results are cached using a hash of the content, so repeated calls with the same CSS content won't re-parse.
+
+**`StaticFontDescriptorProvider`** - Provides a static list of pre-constructed descriptors (useful for bundled fonts):
+
+```kotlin
+val descriptor = ResourceFontDescriptor(
+    resource = Res.font.my_font,
+    fontFamily = "MyFont",
+    weight = FontWeight.Normal,
+    style = FontStyle.Normal,
+    unicodeRanges = emptyList()
+)
+val provider = StaticFontDescriptorProvider(descriptor)
+```
 
 #### `SubsetFontProvider` (Scope Provider)
 

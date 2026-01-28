@@ -31,8 +31,9 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.compose.ui)
+            implementation(libs.compose.components.resources)
             implementation(libs.compose.material3)
+            implementation(libs.compose.ui)
             implementation(libs.kotlinx.coroutines.core)
             implementation(libs.ktor.client.core)
             implementation(libs.ktor.client.js)

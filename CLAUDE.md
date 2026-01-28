@@ -97,12 +97,14 @@ Interface for providing parsed font descriptors from various sources:
 - **FontDescriptorProvider**: Interface with `suspend fun getDescriptors(): List<FontDescriptor>`
 - **CssUrlFontDescriptorProvider**: Loads descriptors from CSS URL using CssCache
 - **CssContentFontDescriptorProvider**: Parses descriptors from CSS content string with hash-based caching via CssCache
+- **StaticFontDescriptorProvider**: Provides a static list of pre-constructed descriptors (useful for bundled fonts)
 
 **Design:**
 
 - Interface abstraction allows multiple descriptor sources
-- Both CSS providers integrate with CssCache for efficient caching and request deduplication
+- CSS providers integrate with CssCache for efficient caching and request deduplication
 - CssContentFontDescriptorProvider uses hash-based cache keys (content hash + baseUrl hash) for efficient lookups
+- StaticFontDescriptorProvider useful for ResourceFontDescriptor instances loaded from Compose resources
 - Extensible: custom providers can load from databases, JSON, etc.
 
 **Pattern:**
@@ -134,16 +136,16 @@ class CssContentFontDescriptorProvider(
 
 **File**: `CssParser.kt`
 
-Parses CSS `@font-face` rules directly into FontDescriptor objects:
+Parses CSS `@font-face` rules directly into UrlFontDescriptor objects:
 
-- **parseCssToDescriptors()**: Main CSS parser that extracts @font-face rules and creates typed descriptors
+- **parseCssToDescriptors()**: Main CSS parser that extracts @font-face rules and creates UrlFontDescriptor instances
 - **extractUrlFromSrc()**: Extracts font URLs from CSS src descriptors (ignores local() fonts)
 - **parseFontWeight()**: Converts CSS weight values to FontWeight (supports named and numeric)
 - **parseFontStyle()**: Converts CSS style values to FontStyle
 
 **Features:**
 
-- Direct CSS → FontDescriptor conversion (no intermediate data structures)
+- Direct CSS → UrlFontDescriptor conversion (no intermediate data structures)
 - Supports all essential CSS font descriptors (font-family, font-weight, font-style, unicode-range, src)
 - Automatically resolves relative URLs against base URL
 - JavaScript-compatible regex patterns (uses `[\s\S]` instead of `(?s)` flag)
@@ -153,17 +155,25 @@ Parses CSS `@font-face` rules directly into FontDescriptor objects:
 
 **File**: `FontDescriptor.kt`
 
-Defines the core font descriptor model and font creation:
+Defines the core font descriptor interface and implementations:
 
-- **FontDescriptor**: Data class with all metadata needed to load and apply a font slice
-    - Properties: `url`, `fontFamily`, `weight` (FontWeight), `style` (FontStyle), `unicodeRanges`
+- **FontDescriptor**: Interface for font descriptors that can load and provide font data
+    - Properties: `cacheKey`, `fontFamily`, `weight` (FontWeight), `style` (FontStyle), `unicodeRanges`
+    - Method: `suspend fun getFont(onBytesLoaded: (Long) -> Unit): Font`
+- **UrlFontDescriptor**: Data class for loading fonts from remote URLs via HTTP
+    - Properties: `url`, `fontFamily`, `weight`, `style`, `unicodeRanges`
+    - Cache key: URL itself
+- **ResourceFontDescriptor**: Data class for loading fonts from Compose resources
+    - Properties: `resource`, `fontFamily`, `weight`, `style`, `unicodeRanges`
+    - Cache key: Hash of resource and metadata
 - **createFontFromData()**: Creates a Compose Font from ByteArray with proper metadata
 
 **Design:**
 
-- Simple, focused data class with typed Compose properties (not CSS strings)
+- Interface-based abstraction allows multiple font sources (URLs, resources, etc.)
+- Each implementation provides its own loading logic and cache key strategy
+- Typed Compose properties (not CSS strings)
 - Used throughout the system as the single source of truth for font metadata
-- Immutable and suitable for use as cache keys
 
 ### 7. UnicodeRange (Character Matching)
 

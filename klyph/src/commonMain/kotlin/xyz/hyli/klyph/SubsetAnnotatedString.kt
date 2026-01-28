@@ -188,7 +188,7 @@ fun rememberSubsetAnnotatedString(
                     val font = FontSliceCache.getOrLoad(descriptor)
                     descriptorToFontFamily += (descriptor to FontFamily(font))
                 } catch (e: Exception) {
-                    println("ERROR: Failed to load font from ${descriptor.url}: ${e.message}")
+                    println("ERROR: Failed to load font from ${descriptor.cacheKey}: ${e.message}")
                 }
             }
         }

@@ -17,9 +17,6 @@
 package xyz.hyli.klyph
 
 import androidx.compose.ui.text.font.Font
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
-import io.ktor.http.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -68,42 +65,41 @@ object FontSliceCache {
         get() = _receivedBytes
 
     /**
-     * Gets font data from cache or loads it from the URL if not cached.
+     * Gets font data from cache or loads it from the descriptor source if not cached.
      *
      * Implements request deduplication: if multiple concurrent calls request
-     * the same URL, only one network fetch occurs and all callers receive
-     * the same result.
+     * the same descriptor (identified by cache key), only one load operation
+     * occurs and all callers receive the same result.
      *
-     * @param url The URL of the font resource.
-     * @return The font data as ByteArray.
-     * @throws Exception if fetching fails.
+     * @param descriptor The font descriptor to load.
+     * @return The loaded Font instance.
+     * @throws Exception if loading fails.
      */
     suspend fun getOrLoad(descriptor: FontDescriptor): Font = coroutineScope {
-        val url = descriptor.url
+        val cacheKey = descriptor.cacheKey
         val deferred = mutex.withLock {
             // Check if already in cache or being fetched
-            cache[url]?.let { return@withLock it }
+            cache[cacheKey]?.let { return@withLock it }
 
             // Not in cache, create deferred and start fetch
             async {
                 try {
-                    val res = httpClient.get(url)
-                    val fontData = res.bodyAsBytes()
-                    _receivedBytes.value += res.contentLength() ?: fontData.size.toLong()
-                    createFontFromData(fontData, descriptor)
+                    descriptor.getFont() { bytesReceived ->
+                        _receivedBytes.value += bytesReceived
+                    }
                 } catch (e: Exception) {
                     // Remove from cache on error so retry is possible
-                    mutex.withLock { cache.remove(url) }
+                    mutex.withLock { cache.remove(cacheKey) }
                     throw e
                 }
             }.also {
-                cache[url] = it
+                cache[cacheKey] = it
             }
         }
 
         deferred.await().also {
             _descriptors.value = _descriptors.value.toMutableMap().apply {
-                put(url, descriptor)
+                put(cacheKey, descriptor)
             }
         }
     }
@@ -121,7 +117,7 @@ object FontSliceCache {
             try {
                 getOrLoad(descriptor)
             } catch (e: Exception) {
-                println("ERROR: Failed to preload font from ${descriptor.url}: ${e.message}")
+                println("ERROR: Failed to preload font from ${descriptor.cacheKey}: ${e.message}")
             }
         }
     }

@@ -271,9 +271,9 @@ fun App() {
             )
 
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                cachedFontDescriptors.forEach { (url, descriptor) ->
+                cachedFontDescriptors.forEach { (cacheKey, descriptor) ->
                     Text(
-                        text = "• ${descriptor.fontFamily} | Weight: ${descriptor.weight.weight} | Style: ${descriptor.style} | URL: $url",
+                        text = "• ${descriptor.fontFamily} | Weight: ${descriptor.weight.weight} | Style: ${descriptor.style} | From: $cacheKey",
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         fontSize = 12.sp

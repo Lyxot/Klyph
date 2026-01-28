@@ -22,14 +22,14 @@ import androidx.compose.ui.text.font.FontWeight
 /**
  * Parses a CSS string to extract @font-face rules and convert them into FontDescriptor objects.
  *
- * This function directly creates FontDescriptor objects from CSS, skipping intermediate representations.
- * It automatically resolves relative URLs against the base URL if provided.
+ * This function directly creates UrlFontDescriptor objects from CSS @font-face rules,
+ * skipping intermediate representations. It automatically resolves relative URLs against the base URL if provided.
  *
  * @param css The CSS content as a string.
  * @param baseUrl Optional base URL for resolving relative URLs in the CSS. If provided, all relative URLs in src descriptors will be resolved against this base URL.
- * @return A list of [FontDescriptor] objects found in the CSS.
+ * @return A list of [UrlFontDescriptor] objects found in the CSS.
  */
-fun parseCssToDescriptors(css: String, baseUrl: String? = null): List<FontDescriptor> {
+fun parseCssToDescriptors(css: String, baseUrl: String? = null): List<UrlFontDescriptor> {
     // TODO: Handle @import rules in CSS files
     // https://npm.webcache.cn/misans-webfont/misans-style.css
 
@@ -38,7 +38,7 @@ fun parseCssToDescriptors(css: String, baseUrl: String? = null): List<FontDescri
 
     val fontFaceRegex = """@font-face\s*\{([^{}]+)\}""".toRegex()
     val fontFaceBlocks = fontFaceRegex.findAll(cssNoComments)
-    val descriptors = mutableListOf<FontDescriptor>()
+    val descriptors = mutableListOf<UrlFontDescriptor>()
 
     for (block in fontFaceBlocks) {
         val content = block.groupValues[1].trim()
@@ -80,7 +80,7 @@ fun parseCssToDescriptors(css: String, baseUrl: String? = null): List<FontDescri
         val unicodeRanges = parseUnicodeRange(getValue("unicode-range"))
 
         descriptors.add(
-            FontDescriptor(
+            UrlFontDescriptor(
                 url = resolvedUrl,
                 fontFamily = fontFamily,
                 weight = weight,
