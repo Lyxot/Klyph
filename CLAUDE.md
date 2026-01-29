@@ -15,8 +15,10 @@ xyz.hyli.klyph/
 ├── SubsetFontProvider.kt            # Scoped API: SubsetFontScope & SubsetFontProvider
 ├── FontDescriptorProvider.kt        # Provider interface: FontDescriptorProvider
 ├── FontDescriptor.kt                # Font metadata: Descriptor model and Font creation
+├── Parser.kt                        # Parsing helpers: unicode-range, font-weight, font-style
 ├── UnicodeRange.kt                  # Character matching: Unicode range parsing and matching
-└──  FontSliceCache.kt                # Caching: Font cache with deduplication & monitoring
+├── FontSliceCache.kt                # Caching: Font cache with deduplication & monitoring
+└── HttpClient.kt                    # Platform: HTTP client expect/actual declaration
 ```
 
 **klyph-css**
@@ -27,287 +29,124 @@ xyz.hyli.klyph.css/
 ├── CssCache.kt                      # Caching: CSS cache with deduplication & monitoring
 ├── UrlUtils.kt                      # Utilities: Relative URL resolution
 ├── CssUrlFontDescriptorProvider.kt  # CSS URL provider implementation
-└── CssContentFontDescriptorProvider.kt # CSS content provider implementation
-├── HttpClient.kt                    # Platform: HTTP client expect/actual declaration
+├── CssContentFontDescriptorProvider.kt # CSS content provider implementation
+└── HttpClient.kt                    # Platform: HTTP client expect/actual declaration
 ```
 
 ## Core Components
 
-### 1. SubsetText (Primary API)
+### 1. SubsetText (Primary API, klyph-core)
 
 **File**: `SubsetText.kt`
 
 The main user-facing composable with high-level text rendering:
 
-- **Scoped**: `SubsetFontScope.SubsetText()` - No provider parameter, gets it from scope (recommended)
-- **Standalone**: `SubsetText(provider = ...)` - Explicit FontDescriptorProvider for one-off usage
+- **Scoped**: `SubsetFontScope.SubsetText()` - uses the provider from scope
+- **Standalone**: `SubsetText(provider = ...)` - explicit FontDescriptorProvider for one-off usage
 
-Both variants wrap the standard Material3 Text composable with automatic font subsetting powered by `rememberSubsetAnnotatedString()`.
+Both variants wrap Material3 Text with automatic font subsetting powered by `rememberSubsetAnnotatedString()`.
 
 **Key Functions:**
 
-- `SubsetFontScope.SubsetText()`: Scoped extension function that uses provider from scope
-- `SubsetText()`: Standalone function with explicit provider parameter
+- `SubsetFontScope.SubsetText()`
+- `SubsetText()`
 
-### 2. SubsetAnnotatedString (Low-level API)
+### 2. SubsetAnnotatedString (Low-level API, klyph-core)
 
 **File**: `SubsetAnnotatedString.kt`
 
 Low-level composable for direct AnnotatedString access with font subsetting:
 
-- **Scoped**: `SubsetFontScope.rememberSubsetAnnotatedString()` - No provider parameter, gets it from scope
-- **Standalone**: `rememberSubsetAnnotatedString(descriptors = ...)` - Explicit descriptor list for direct
-  AnnotatedString building
+- **Scoped**: `SubsetFontScope.rememberSubsetAnnotatedString()`
+- **Standalone**: `rememberSubsetAnnotatedString(descriptors = ...)`
 
-Use this when you need more control than SubsetText provides, such as building custom composables, combining multiple AnnotatedStrings, or applying additional styling.
+Use this when you need custom AnnotatedString composition or additional styling.
 
 **Key Functions:**
 
-- `rememberSubsetAnnotatedString()`: Builds AnnotatedString with character-level font slice assignments
-- `SubsetFontScope.rememberSubsetAnnotatedString()`: Scoped extension function for direct AnnotatedString access
-- `findDescriptor()`: Finds descriptor for a character with locality hint optimization (O(D) to O(1))
-- `TextInterval`: Data class representing a contiguous run of text with the same font
-- `isWeightMatching()`, `isStyleMatching()`: Helper functions for descriptor filtering
+- `rememberSubsetAnnotatedString()`
+- `SubsetFontScope.rememberSubsetAnnotatedString()`
+- `findDescriptor()` (locality hint optimization)
+- `TextInterval`
+- `isWeightMatching()`, `isStyleMatching()`
 
-**Algorithm Optimization:**
-The character-to-font matching uses a locality hint pattern that optimizes sequential lookups from O(D) to O(1) for consecutive characters in the same script, where D is the number of font descriptors. This is particularly effective for real-world text where characters are often grouped by script (e.g., "Hello 世界 World" has 3 transitions, not 15).
-
-### 3. SubsetFontProvider (Scoped API)
+### 3. SubsetFontProvider (Scoped API, klyph-core)
 
 **File**: `SubsetFontProvider.kt`
 
-Provides the scoped API pattern similar to Row/Column:
+Provides a scoped API (similar to Row/Column):
 
-- **SubsetFontScope**: Scope class holding FontDescriptorProvider and fallback FontFamily
-- **SubsetFontProvider**: Composable that creates scope and runs content lambda
-- Type-safe scoped API eliminates repetitive provider parameters
+- `SubsetFontScope` holds the provider and optional fallback FontFamily
+- `SubsetFontProvider` creates the scope and runs the content lambda
 
-**Pattern:**
+### 4. FontDescriptorProvider (Provider Interface, klyph-core + klyph-css)
 
-```kotlin
-class SubsetFontScope(
-    val provider: FontDescriptorProvider,
-    val fontFamily: FontFamily?
-)
-
-@Composable
-fun SubsetFontProvider(
-    provider: FontDescriptorProvider,
-    fontFamily: FontFamily? = null,
-    content: @Composable SubsetFontScope.() -> Unit
-)
-```
-
-### 4. FontDescriptorProvider (Provider Interface)
-
-**File**: `FontDescriptorProvider.kt`
+**File**: `FontDescriptorProvider.kt` (core)
 
 Interface for providing parsed font descriptors from various sources:
 
-- **FontDescriptorProvider**: Interface with `suspend fun getDescriptors(): List<FontDescriptor>`
-- **CssUrlFontDescriptorProvider** (klyph-css): Loads descriptors from CSS URL using CssCache
-- **CssContentFontDescriptorProvider** (klyph-css): Parses descriptors from CSS content string with hash-based caching
-  via CssCache
-- **StaticFontDescriptorProvider**: Provides a static list of pre-constructed descriptors (useful for bundled fonts)
+- **FontDescriptorProvider**: `suspend fun getDescriptors(): List<FontDescriptor>`
+- **StaticFontDescriptorProvider** (core): static list of descriptors for bundled fonts
+- **CssUrlFontDescriptorProvider** (klyph-css): loads descriptors from CSS URL via CssCache
+- **CssContentFontDescriptorProvider** (klyph-css): parses CSS content via CssCache
 
-**Design:**
+### 5. Parser (Parsing Helpers, klyph-core)
 
-- Interface abstraction allows multiple descriptor sources
-- CSS providers (klyph-css) integrate with CssCache for efficient caching and request deduplication
-- CssContentFontDescriptorProvider (klyph-css) uses hash-based cache keys for efficient lookups
-- StaticFontDescriptorProvider useful for ResourceFontDescriptor instances loaded from Compose resources
-- Extensible: custom providers can load from databases, JSON, etc.
+**File**: `Parser.kt`
 
-**Pattern:**
+Shared parsing utilities used across the core module and CSS providers:
 
-```kotlin
-interface FontDescriptorProvider {
-    suspend fun getDescriptors(): List<FontDescriptor>
-}
+- `parseUnicodeRange()`
+- `parseFontWeight()`
+- `parseFontStyle()`
 
-class CssUrlFontDescriptorProvider(
-    private val cssUrl: String
-) : FontDescriptorProvider {
-    override suspend fun getDescriptors(): List<FontDescriptor> {
-        return CssCache.getOrLoad(cssUrl)
-    }
-}
+### 6. FontDescriptor (Font Metadata, klyph-core + klyph-css)
 
-class CssContentFontDescriptorProvider(
-    private val cssContent: String,
-    private val baseUrl: String = ""
-) : FontDescriptorProvider {
-    override suspend fun getDescriptors(): List<FontDescriptor> {
-        return parseCssToDescriptors(cssContent, baseUrl)
-    }
-}
-```
+**File**: `FontDescriptor.kt` (core) and `CssFontDescriptor.kt` (klyph-css)
 
-### 5. CssParser (CSS Parsing, klyph-css)
+Core interface and implementations:
 
-**File**: `CssParser.kt` (klyph-css)
+- **FontDescriptor**: `cacheKey`, `fontFamily`, `weight`, `style`, `unicodeRanges`, `getFontFamily()`
+- **ResourceFontDescriptor** (core): loads bundled Compose resources; includes CSS-string convenience constructor
+- **UrlFontDescriptor** (klyph-css): loads fonts via HTTP
+- **createFontFamilyFromData()**: wraps platform Font into a FontFamily
 
-Parses CSS `@font-face` rules directly into UrlFontDescriptor objects:
-
-- **parseCssToDescriptors()**: Main CSS parser that extracts @font-face rules and creates UrlFontDescriptor instances
-- **extractUrlFromSrc()**: Extracts font URLs from CSS src descriptors (ignores local() fonts)
-- **parseFontWeight()**: Converts CSS weight values to FontWeight (supports named and numeric)
-- **parseFontStyle()**: Converts CSS style values to FontStyle
-
-**Features:**
-
-- Direct CSS → UrlFontDescriptor conversion (no intermediate data structures)
-- Supports all essential CSS font descriptors (font-family, font-weight, font-style, unicode-range, src)
-- Automatically resolves relative URLs against base URL
-- JavaScript-compatible regex patterns (uses `[\s\S]` instead of `(?s)` flag)
-- Strips CSS comments before parsing
-
-### 6. FontDescriptor (Font Metadata)
-
-**File**: `FontDescriptor.kt`
-
-Defines the core font descriptor interface and implementations:
-
-- **FontDescriptor**: Interface for font descriptors that can load and provide font data
-    - Properties: `cacheKey`, `fontFamily`, `weight` (FontWeight), `style` (FontStyle), `unicodeRanges`
-    - Method: `suspend fun getFont(onBytesLoaded: (Long) -> Unit): Font`
-- **UrlFontDescriptor**: Data class for loading fonts from remote URLs via HTTP
-    - Properties: `url`, `fontFamily`, `weight`, `style`, `unicodeRanges`
-    - Cache key: URL itself
-- **ResourceFontDescriptor**: Data class for loading fonts from Compose resources
-    - Properties: `resource`, `fontFamily`, `weight`, `style`, `unicodeRanges`
-    - Cache key: Hash of resource and metadata
-- **createFontFromData()**: Creates a Compose FontFamily from ByteArray with proper metadata (Android uses ByteBuffer on
-  API 29+ and a temp-file fallback below)
-
-**Design:**
-
-- Interface-based abstraction allows multiple font sources (URLs, resources, etc.)
-- Each implementation provides its own loading logic and cache key strategy
-- Typed Compose properties (not CSS strings)
-- Used throughout the system as the single source of truth for font metadata
-
-### 7. UnicodeRange (Character Matching)
+### 7. UnicodeRange (Character Matching, klyph-core)
 
 **File**: `UnicodeRange.kt`
 
-Handles unicode-range parsing and character matching:
+- `UnicodeRange` data class
+- `isCharInRanges()` helper
 
-- **UnicodeRange**: Data class representing a unicode range (start, end)
-- **parseUnicodeRange()**: Parses CSS unicode-range values into UnicodeRange objects
-- **isCharInRanges()**: Checks if a character falls within a list of unicode ranges
-
-**Supported Formats:**
-
-- Single code point: `U+26` → `UnicodeRange(0x26, 0x26)`
-- Range: `U+4E00-9FFF` → `UnicodeRange(0x4E00, 0x9FFF)`
-- Wildcard: `U+4??` → `UnicodeRange(0x400, 0x4FF)`
-- Multiple ranges: `U+0-FF, U+131, U+152-153` → List of UnicodeRange objects
-
-### 8. FontSliceCache (Font Caching)
+### 8. FontSliceCache (Font Caching, klyph-core)
 
 **File**: `FontSliceCache.kt`
 
-Thread-safe global cache for font files with request deduplication and monitoring:
+Thread-safe cache of loaded FontFamily instances with request deduplication and monitoring.
 
-- **Cache Storage**: `MutableMap<String, Deferred<FontFamily>>` - Stores fully created FontFamily instances
-- **Thread Safety**: Mutex-protected operations
-- **Request Deduplication**: Stores `Deferred` to prevent concurrent duplicate fetches
-- **Descriptor Tracking**: `StateFlow<Map<String, FontDescriptor>>` - All cached font descriptors
-- **Bandwidth Monitoring**: `StateFlow<Long>` - Total bytes received from font downloads
-- **Operations**: `getOrLoad(descriptor)`, `preload(descriptors)`, `clear()`, `clearAsync()`
+### 9. CssParser (CSS Parsing, klyph-css)
 
-**Request Deduplication Pattern:**
+**File**: `CssParser.kt`
 
-```kotlin
-suspend fun getOrLoad(descriptor: FontDescriptor): FontFamily = coroutineScope {
-    val url = descriptor.url
-    val deferred = mutex.withLock {
-        cache[url]?.let { return@withLock it }
-        async {
-            try {
-                val res = httpClient.get(url)
-                val fontData = res.bodyAsBytes()
-                _receivedBytes.value += res.contentLength() ?: fontData.size.toLong()
-                createFontFromData(fontData, descriptor)
-            } catch (e: Exception) {
-                mutex.withLock { cache.remove(url) }
-                throw e
-            }
-        }.also { cache[url] = it }
-    }
-    deferred.await().also {
-        _descriptors.value += (url to descriptor)
-    }
-}
-```
+Parses CSS `@font-face` rules into UrlFontDescriptor instances and resolves relative URLs.
 
-**Why Deduplication Matters:**
-If 10 `SubsetText` instances mount simultaneously and all need the same Chinese font slice, without deduplication: 10
-network requests. With deduplication: 1 network request, all share result.
+### 10. CssCache (CSS Caching, klyph-css)
 
-### 9. CssCache (CSS Caching, klyph-css)
+**File**: `CssCache.kt`
 
-**File**: `CssCache.kt` (klyph-css)
+Thread-safe cache for parsed CSS with request deduplication and bandwidth monitoring.
 
-Thread-safe global cache for parsed CSS files with request deduplication and monitoring:
+### 11. UrlUtils (URL Resolution, klyph-css)
 
-- **Cache Storage**: `MutableMap<String, Deferred<List<FontDescriptor>>>` - Stores parsed descriptors
-- **Thread Safety**: Mutex-protected operations
-- **Request Deduplication**: Stores `Deferred` to prevent concurrent duplicate fetch+parse
-- **Descriptor Tracking**: `StateFlow<Map<String, List<FontDescriptor>>>` - All cached CSS descriptors by URL/key
-- **Bandwidth Monitoring**: `StateFlow<Long>` - Total bytes received from CSS downloads
-- **Operations**:
-    - `getOrLoad(url)` - Fetches and caches CSS from URL
-    - `getOrParse(cssContent, baseUrl)` - Parses and caches CSS content string using hash-based key
-    - `clear()`, `clearAsync()` - Clears the cache
-- **Helper Function**: `getFontCssDescription()` - convenience wrapper for `CssCache.getOrLoad()`
+**File**: `UrlUtils.kt`
 
-**Hash-Based Caching for CSS Content:**
-When parsing CSS content strings (not URLs), CssCache uses a hash-based key:
-`"content:${cssContent.hashCode()}:${baseUrl.hashCode()}"`. This provides a short, efficient cache key without storing
-the full content as the key.
+Resolves relative URLs in CSS files.
 
-**Integrated URL Resolution:**
-Automatically resolves relative URLs in CSS against the CSS file's base URL during parsing.
-
-**Key Features:**
-
-- Direct CSS → FontDescriptor conversion (no intermediate FontFace objects)
-- Supports both URL-based and content-based CSS parsing with caching
-- Tracks total CSS bandwidth for monitoring
-- Provides async clear for fire-and-forget cleanup
-
-### 10. UrlUtils (URL Resolution, klyph-css)
-
-**File**: `UrlUtils.kt` (klyph-css)
-
-Resolves relative URLs in CSS files:
-
-- **resolveUrl()**: Main resolution function that handles all URL types
-- **Supports**: Absolute URLs, relative paths (`./`, `../`), absolute paths (`/`), protocol-relative (`//`), data URLs
-
-**Example:**
-
-```kotlin
-resolveUrl("https://example.com/css/fonts.css", "./font.woff2")
-// → "https://example.com/css/font.woff2"
-
-resolveUrl("https://example.com/css/fonts.css", "../assets/font.woff2")
-// → "https://example.com/assets/font.woff2"
-```
-
-### 11. HttpClient (Platform Abstraction)
+### 12. HttpClient (Platform Abstraction, klyph-css)
 
 **File**: `HttpClient.kt`
 
-Platform-specific HTTP client declaration using Kotlin's expect/actual pattern:
-
-```kotlin
-expect val httpClient: HttpClient
-```
-
-Implementations provided in platform-specific source sets (androidMain, iosMain, jvmMain, jsMain, wasmJsMain).
+Platform-specific HTTP client declaration via expect/actual.
 
 ## Data Flow
 

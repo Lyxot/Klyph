@@ -16,9 +16,6 @@
 
 package xyz.hyli.klyph
 
-import androidx.compose.ui.text.font.FontStyle
-import androidx.compose.ui.text.font.FontWeight
-
 /**
  * Parses a CSS string to extract @font-face rules and convert them into FontDescriptor objects.
  *
@@ -117,41 +114,4 @@ private fun extractUrlFromSrc(srcValue: String): String? {
         .removeSurrounding("\"")
         .removeSurrounding("'")
         .trim()
-}
-
-/**
- * Parses a CSS font-weight value into a FontWeight.
- *
- * Supports named values ("normal", "bold") and numeric values (100-900).
- *
- * @param weightStr The font-weight value from CSS (e.g., "normal", "bold", "400").
- * @return The corresponding FontWeight, defaulting to Normal if parsing fails.
- */
-private fun parseFontWeight(weightStr: String?): FontWeight {
-    // TODO: support variable font weights like "300 700"
-    return when (weightStr?.lowercase()) {
-        "normal" -> FontWeight.Normal
-        "bold" -> FontWeight.Bold
-        else -> {
-            // Try parsing as integer
-            weightStr?.toIntOrNull()?.let {
-                FontWeight(it)
-            } ?: FontWeight.Normal
-        }
-    }
-}
-
-/**
- * Parses a CSS font-style value into a FontStyle.
- *
- * Supports "normal", "italic", and "oblique" (treated as italic).
- *
- * @param styleStr The font-style value from CSS (e.g., "normal", "italic").
- * @return The corresponding FontStyle, defaulting to Normal if parsing fails.
- */
-private fun parseFontStyle(styleStr: String?): FontStyle {
-    return when (styleStr?.lowercase()) {
-        "italic", "oblique" -> FontStyle.Italic
-        else -> FontStyle.Normal
-    }
 }

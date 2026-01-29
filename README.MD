@@ -230,6 +230,18 @@ val descriptor = ResourceFontDescriptor(
 val provider = StaticFontDescriptorProvider(descriptor)
 ```
 
+You can also use the CSS-string convenience constructor:
+
+```kotlin
+val descriptor = ResourceFontDescriptor(
+   resource = Res.font.my_font,
+   fontFamily = "MyFont",
+   weight = "400",
+   style = "normal",
+   unicodeRanges = "U+0-FF, U+131, U+152-153"
+)
+```
+
 #### `SubsetFontProvider` (Scope Provider)
 
 ```kotlin

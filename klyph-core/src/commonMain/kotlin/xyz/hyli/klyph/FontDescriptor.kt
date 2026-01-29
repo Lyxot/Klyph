@@ -43,6 +43,35 @@ data class ResourceFontDescriptor(
     override val style: FontStyle,
     override val unicodeRanges: List<UnicodeRange>
 ) : FontDescriptor {
+    /**
+     * Convenience constructor that accepts CSS-style strings for weight, style, and unicode ranges.
+     *
+     * This mirrors CSS @font-face fields, so you can pass values like:
+     * - weight: "normal", "bold", "400", "700"
+     * - style: "normal", "italic"
+     * - unicodeRanges: "U+0-FF, U+131, U+152-153"
+     *
+     * @param resource The font resource reference.
+     * @param fontFamily The name of the font family.
+     * @param weight CSS-style font-weight string.
+     * @param style CSS-style font-style string.
+     * @param unicodeRanges CSS unicode-range string (single or comma-separated ranges). This is
+     * passed directly to [parseUnicodeRange].
+     */
+    constructor(
+        resource: FontResource,
+        fontFamily: String,
+        weight: String,
+        style: String,
+        unicodeRanges: String
+    ) : this(
+        resource = resource,
+        fontFamily = fontFamily,
+        weight = parseFontWeight(weight),
+        style = parseFontStyle(style),
+        unicodeRanges = parseUnicodeRange(unicodeRanges)
+    )
+
     override val cacheKey: String
         get() = "hash:${resource.hashCode()}:${weight.hashCode()}:${style.hashCode()}:${unicodeRanges.hashCode()}"
 
