@@ -176,7 +176,7 @@ fun App() {
                     """.trimIndent(),
                         fontSize = 14.sp,
                         lineHeight = 20.sp,
-                        provider = CssUrlFontDescriptorProvider(MoonStarsKaiTRegular)
+                        provider = MoonStarsKaiTRegular
                     )
 
                     Text(
