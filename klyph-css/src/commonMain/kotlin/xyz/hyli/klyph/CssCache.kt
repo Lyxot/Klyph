@@ -19,7 +19,6 @@ package xyz.hyli.klyph
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
-import io.ktor.utils.io.core.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -96,7 +95,7 @@ object CssCache {
      * @throws Exception if parsing fails.
      */
     suspend fun getOrLoad(cssContent: String, baseUrl: String): List<FontDescriptor> =
-        getOrLoad("hash:${"$cssContent:$baseUrl".toByteArray().toFnv1aHashString()}") {
+        getOrLoad("hash:${"$cssContent:$baseUrl".toFnv1aHashString()}") {
             parseCssToDescriptors(cssContent, baseUrl)
         }
 

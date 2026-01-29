@@ -73,7 +73,7 @@ data class ResourceFontDescriptor(
     )
 
     override val cacheKey: String
-        get() = "hash:${resource.hashCode()}:${weight.hashCode()}:${style.hashCode()}:${unicodeRanges.hashCode()}"
+        get() = "hash:" + "${resource}:${weight}:${style}:${unicodeRanges}".toFnv1aHashString()
 
     override suspend fun getFontFamily(
         onBytesLoaded: (Long) -> Unit

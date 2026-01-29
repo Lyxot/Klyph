@@ -28,5 +28,5 @@ fun ByteArray.toFnv1aHash(): UInt {
     return hash
 }
 
-fun ByteArray.toFnv1aHashString(): String =
-    toFnv1aHash().toString(16)
+fun String.toFnv1aHashString(): String =
+    encodeToByteArray().toFnv1aHash().toString(16)
