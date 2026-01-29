@@ -386,7 +386,7 @@ Global cache for loaded font slices with request deduplication and monitoring:
 object FontSliceCache {
    val descriptors: StateFlow<Map<String, FontDescriptor>>  // All cached font descriptors
    val receivedBytes: StateFlow<Long>                              // Total bytes downloaded
-   suspend fun getOrLoad(descriptor: FontDescriptor): Font   // Gets from cache or fetches
+   suspend fun getOrLoad(descriptor: FontDescriptor): FontFamily   // Gets from cache or fetches
    suspend fun preload(descriptors: List<FontDescriptor>)    // Preloads multiple fonts
    suspend fun clear()                                             // Clears all cached fonts (suspend)
    fun clearAsync()                                                // Clears cache asynchronously (fire-and-forget)

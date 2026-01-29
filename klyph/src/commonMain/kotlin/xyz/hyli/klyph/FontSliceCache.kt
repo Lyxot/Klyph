@@ -16,7 +16,7 @@
 
 package xyz.hyli.klyph
 
-import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +27,7 @@ import xyz.hyli.klyph.FontSliceCache.clear
 /**
  * Global cache for loaded font slices with request deduplication.
  *
- * This cache stores font file data (as ByteArray) to avoid redundant network
+ * This cache stores loaded FontFamily instances to avoid redundant network
  * requests when the same font slice is needed by multiple composables.
  *
  * **Request Deduplication:**
@@ -47,7 +47,7 @@ import xyz.hyli.klyph.FontSliceCache.clear
  * only 1 request is made and all 10 instances share the result.
  */
 object FontSliceCache {
-    private val cache = mutableMapOf<String, Deferred<Font>>()
+    private val cache = mutableMapOf<String, Deferred<FontFamily>>()
     private val mutex = Mutex()
     private val _descriptors = MutableStateFlow<Map<String, FontDescriptor>>(emptyMap())
     private val _receivedBytes = MutableStateFlow(0L)
@@ -72,10 +72,10 @@ object FontSliceCache {
      * occurs and all callers receive the same result.
      *
      * @param descriptor The font descriptor to load.
-     * @return The loaded Font instance.
+     * @return The loaded FontFamily instance.
      * @throws Exception if loading fails.
      */
-    suspend fun getOrLoad(descriptor: FontDescriptor): Font = coroutineScope {
+    suspend fun getOrLoad(descriptor: FontDescriptor): FontFamily = coroutineScope {
         val cacheKey = descriptor.cacheKey
         val deferred = mutex.withLock {
             // Check if already in cache or being fetched
@@ -84,7 +84,7 @@ object FontSliceCache {
             // Not in cache, create deferred and start fetch
             async {
                 try {
-                    descriptor.getFont() { bytesReceived ->
+                    descriptor.getFontFamily { bytesReceived ->
                         _receivedBytes.value += bytesReceived
                     }
                 } catch (e: Exception) {

@@ -17,6 +17,7 @@
 package xyz.hyli.klyph
 
 import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import io.ktor.client.request.*
@@ -49,13 +50,13 @@ data class UrlFontDescriptor(
     override val cacheKey: String
         get() = "url:$url"
 
-    override suspend fun getFont(
+    override suspend fun getFontFamily(
         onBytesLoaded: (Long) -> Unit
-    ): Font {
+    ): FontFamily {
         val res = httpClient.get(url)
         val fontData = res.bodyAsBytes()
         onBytesLoaded(res.contentLength() ?: fontData.size.toLong())
-        return createFontFromData(fontData, this)
+        return createFontFamilyFromData(fontData, this)
     }
 }
 
@@ -81,13 +82,13 @@ data class ResourceFontDescriptor(
     override val cacheKey: String
         get() = "hash:${resource.hashCode()}:${weight.hashCode()}:${style.hashCode()}:${unicodeRanges.hashCode()}"
 
-    override suspend fun getFont(
+    override suspend fun getFontFamily(
         onBytesLoaded: (Long) -> Unit
-    ): Font {
+    ): FontFamily {
         val env = getSystemResourceEnvironment()
         val fontData = getFontResourceBytes(env, resource)
         onBytesLoaded(fontData.size.toLong())
-        return createFontFromData(fontData, this)
+        return createFontFamilyFromData(fontData, this)
     }
 }
 
@@ -112,31 +113,43 @@ interface FontDescriptor {
     val unicodeRanges: List<UnicodeRange>
 
     /**
-     * Loads the font data and creates a Compose Font instance.
+     * Loads the font data and creates a Compose FontFamily instance.
      *
      * @param onBytesLoaded Callback invoked with the number of bytes loaded (for tracking/monitoring).
-     * @return A Compose Font instance ready to be used in a FontFamily.
+     * @return A Compose FontFamily instance ready to be used for text rendering.
      */
-    suspend fun getFont(
+    suspend fun getFontFamily(
         onBytesLoaded: (Long) -> Unit = { }
-    ): Font
+    ): FontFamily
 }
 
 /**
- * Creates a Compose Font instance from loaded font data.
+ * Creates a Compose FontFamily instance from loaded font data.
  *
  * This function wraps the raw font ByteArray in a platform-specific Font object
  * with the appropriate metadata (weight, style, identity).
  *
  * @param data The font data as ByteArray.
  * @param descriptor The parsed font descriptor with metadata.
- * @return A Compose Font instance ready to be used in a FontFamily.
+ * @return A Compose FontFamily instance ready to be used for text rendering.
  */
-fun createFontFromData(data: ByteArray, descriptor: FontDescriptor): Font {
-    return PlatformFont(
+fun createFontFamilyFromData(data: ByteArray, descriptor: FontDescriptor): FontFamily =
+    FontFamily(createFontFromData(data, descriptor))
+
+/**
+ * Creates a Compose Font object from loaded font data.
+ *
+ * This function wraps the raw font ByteArray in a platform-specific Font object
+ * with the appropriate metadata (weight, style, identity).
+ *
+ * @param data The font data as ByteArray.
+ * @param descriptor The parsed font descriptor with metadata.
+ * @return A Compose Font object ready to be used in a FontFamily.
+ */
+fun createFontFromData(data: ByteArray, descriptor: FontDescriptor): Font =
+    PlatformFont(
         identity = "${descriptor.fontFamily}-${descriptor.weight.weight}-${descriptor.style}-${descriptor.hashCode()}",
         data = data,
         weight = descriptor.weight,
         style = descriptor.style
     )
-}

@@ -198,7 +198,7 @@ Handles unicode-range parsing and character matching:
 
 Thread-safe global cache for font files with request deduplication and monitoring:
 
-- **Cache Storage**: `MutableMap<String, Deferred<Font>>` - Stores fully created Font objects
+- **Cache Storage**: `MutableMap<String, Deferred<FontFamily>>` - Stores fully created FontFamily instances
 - **Thread Safety**: Mutex-protected operations
 - **Request Deduplication**: Stores `Deferred` to prevent concurrent duplicate fetches
 - **Descriptor Tracking**: `StateFlow<Map<String, FontDescriptor>>` - All cached font descriptors
@@ -208,7 +208,7 @@ Thread-safe global cache for font files with request deduplication and monitorin
 **Request Deduplication Pattern:**
 
 ```kotlin
-suspend fun getOrLoad(descriptor: FontDescriptor): Font = coroutineScope {
+suspend fun getOrLoad(descriptor: FontDescriptor): FontFamily = coroutineScope {
     val url = descriptor.url
     val deferred = mutex.withLock {
         cache[url]?.let { return@withLock it }
@@ -321,11 +321,11 @@ Implementations provided in platform-specific source sets (jsMain, wasmJsMain).
         ↓
 5. Font Loading & Caching
    - For each unique descriptor in intervals:
-     - FontSliceCache.getOrLoad(url) checks cache
+     - FontSliceCache.getOrLoad(descriptor) checks cache
      - If miss: httpClient fetches font data
      - createFontFromData() creates Compose Font
      - Wrap in FontFamily(singleFont)
-     - Result cached in FontSliceCache
+     - Result cached in FontSliceCache (FontFamily)
         ↓
 6. AnnotatedString Building
    - For each TextInterval:
@@ -365,7 +365,7 @@ ensuring correct selection.
 
 Separation of concerns:
 
-- **FontSliceCache**: Caches binary font data (ByteArray), potentially large (50-200 KB each)
+- **FontSliceCache**: Caches FontFamily instances created from font data (50-200 KB per slice)
 - **CssCache**: Caches parsed CSS metadata (List<FontFace>), lightweight structured data
 - **Different Lifetimes**: CSS rarely changes, fonts loaded on-demand
 - **Clear Responsibilities**: Font loading vs CSS parsing are distinct operations
@@ -410,7 +410,7 @@ Character-level approach provides:
 
 ### Memory Usage:
 
-- FontSliceCache: Holds Font objects for each loaded font slice
+- FontSliceCache: Holds FontFamily instances for each loaded font slice
 - Typical slice: 50-200 KB
 - Example session with 10 slices: ~1-2 MB total
 - CssCache: Holds parsed FontDescriptor lists (lightweight metadata)
