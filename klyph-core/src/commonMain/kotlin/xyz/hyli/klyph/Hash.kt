@@ -14,10 +14,19 @@
  * limitations under the License.
  */
 
-plugins {
-    alias(libs.plugins.multiplatform).apply(false)
-    alias(libs.plugins.multiplatform.android).apply(false)
-    alias(libs.plugins.maven.publish).apply(false)
-    alias(libs.plugins.compose).apply(false)
-    alias(libs.plugins.compose.compiler).apply(false)
+package xyz.hyli.klyph
+
+fun ByteArray.toFnv1aHash(): UInt {
+    var hash = 0x811C9DC5u // FNV offset basis
+    val prime = 0x01000193u // FNV prime
+
+    for (byte in this) {
+        hash = hash xor byte.toUInt() // XOR with the current byte
+        hash *= prime // Multiply by the FNV prime
+    }
+
+    return hash
 }
+
+fun ByteArray.toFnv1aHashString(): String =
+    toFnv1aHash().toString(16)

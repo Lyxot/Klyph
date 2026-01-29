@@ -14,10 +14,18 @@
  * limitations under the License.
  */
 
-plugins {
-    alias(libs.plugins.multiplatform).apply(false)
-    alias(libs.plugins.multiplatform.android).apply(false)
-    alias(libs.plugins.maven.publish).apply(false)
-    alias(libs.plugins.compose).apply(false)
-    alias(libs.plugins.compose.compiler).apply(false)
-}
+package xyz.hyli.klyph
+
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.platform.Font as PlatformFont
+
+actual fun createFontFromData(
+    data: ByteArray,
+    descriptor: FontDescriptor
+): Font =
+    PlatformFont(
+        identity = "${descriptor.fontFamily}-${descriptor.weight.weight}-${descriptor.style}-${descriptor.hashCode()}",
+        data = data,
+        weight = descriptor.weight,
+        style = descriptor.style
+    )

@@ -16,9 +16,10 @@
 
 package xyz.hyli.klyph
 
-import kotlinx.atomicfu.locks.synchronized
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -55,11 +56,12 @@ class ConcurrencyTest {
 
         // Simple cache with request deduplication
         val cache = mutableMapOf<String, kotlinx.coroutines.Deferred<String>>()
+        val mutex = Mutex()
 
         suspend fun getOrLoad(url: String): String {
-            val deferred = synchronized(cache) {
+            val deferred = mutex.withLock {
                 // Check if already in cache
-                cache[url]?.let { return@synchronized it }
+                cache[url]?.let { return@withLock it }
 
                 // Not in cache, create deferred and start fetch
                 async {
@@ -104,11 +106,12 @@ class ConcurrencyTest {
         }
 
         val cache = mutableMapOf<String, kotlinx.coroutines.Deferred<String>>()
+        val mutex = Mutex()
 
         suspend fun getOrLoad(url: String): String {
-            val deferred = synchronized(cache) {
+            val deferred = mutex.withLock {
                 // Check if already in cache
-                cache[url]?.let { return@synchronized it }
+                cache[url]?.let { return@withLock it }
 
                 // Not in cache, create deferred and start fetch
                 async {

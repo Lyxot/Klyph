@@ -20,12 +20,22 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
     alias(libs.plugins.multiplatform)
+    alias(libs.plugins.multiplatform.android)
     alias(libs.plugins.maven.publish)
     alias(libs.plugins.compose)
     alias(libs.plugins.compose.compiler)
 }
 
 kotlin {
+    androidLibrary {
+        withJava()
+        namespace = "xyz.hyli.klyph.core"
+        compileSdk = 36
+    }
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
+    jvm { }
     js { browser() }
     wasmJs { browser() }
 
@@ -35,47 +45,15 @@ kotlin {
             implementation(libs.compose.material3)
             implementation(libs.compose.ui)
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.ktor.client.core)
-            implementation(libs.ktor.client.js)
         }
 
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
-    }
-}
 
-//Publishing your Kotlin Multiplatform library to Maven Central
-//https://www.jetbrains.com/help/kotlin-multiplatform-dev/multiplatform-publish-libraries.html
-mavenPublishing {
-    publishToMavenCentral()
-    coordinates("xyz.hyli", "klyph", "1.0.0")
-
-    pom {
-        name = "Klyph"
-        description =
-            "Intelligent font subsetting for Compose Multiplatform - reduces font loading overhead by fetching only the character slices you need"
-        url = "https://github.com/Lyxot/Klyph"
-
-        licenses {
-            license {
-                name = "The Apache License, Version 2.0"
-                url = "http://www.apache.org/licenses/LICENSE-2.0.txt"
-            }
-        }
-
-        developers {
-            developer {
-                id = "" //todo
-                name = "" //todo
-                email = "" //todo
-            }
-        }
-
-        scm {
-            url = "github url" //todo
+        webTest.dependencies {
+            implementation(project(":klyph-css"))
         }
     }
-    if (project.hasProperty("signing.keyId")) signAllPublications()
 }

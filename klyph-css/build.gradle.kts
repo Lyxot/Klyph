@@ -20,28 +20,22 @@ import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 
 plugins {
     alias(libs.plugins.multiplatform)
-    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.maven.publish)
     alias(libs.plugins.compose)
+    alias(libs.plugins.compose.compiler)
 }
 
 kotlin {
-    js {
-        browser()
-        binaries.executable()
-    }
-    wasmJs {
-        browser()
-        binaries.executable()
-    }
+    js { browser() }
+    wasmJs { browser() }
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.compose.components.resources)
-            implementation(libs.compose.material3)
             implementation(libs.compose.ui)
+            implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.ktor.client.core)
+            implementation(libs.ktor.client.js)
             implementation(project(":klyph-core"))
-            implementation(project(":klyph-css"))
         }
     }
 }
-

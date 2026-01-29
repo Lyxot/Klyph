@@ -38,11 +38,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
-      - name: Run JS tests
-        run: ./gradlew :klyph:jsTest --no-daemon --stacktrace
-
-      - name: Run WasmJS tests
-        run: ./gradlew :klyph:wasmJsTest --no-daemon --stacktrace
+      - name: Run tests
+        run: ./gradlew :klyph-core:allTests --no-daemon --stacktrace
 
       - name: Upload test reports
         if: failure()
@@ -50,8 +47,8 @@ jobs:
         with:
           name: test-reports
           path: |
-            klyph/build/reports/tests/
-            klyph/build/test-results/
+            klyph-core/build/reports/tests/
+            klyph-core/build/test-results/
           retention-days: 7
 
   build:

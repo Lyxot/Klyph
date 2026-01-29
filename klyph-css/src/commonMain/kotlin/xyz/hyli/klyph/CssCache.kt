@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import xyz.hyli.klyph.CssCache.clear
+import xyz.hyli.klyph.CssCache.getOrLoad
 
 /**
  * Global cache for CSS files with request deduplication.
@@ -95,37 +96,9 @@ object CssCache {
      * @throws Exception if parsing fails.
      */
     suspend fun getOrLoad(cssContent: String, baseUrl: String): List<FontDescriptor> =
-        getOrLoad("hash:${computeContentHash(cssContent, baseUrl)}") {
+        getOrLoad("hash:${"$cssContent:$baseUrl".toByteArray().toFnv1aHashString()}") {
             parseCssToDescriptors(cssContent, baseUrl)
         }
-
-    /**
-     * Computes a fast hash of CSS content and base URL.
-     *
-     * Uses an FNV-1a inspired hash algorithm which provides:
-     * - Fast computation (single pass through the strings)
-     * - Good distribution (better collision resistance than default hashCode)
-     * - Deterministic results across platforms
-     *
-     * The hash combines both cssContent and baseUrl into a single hash value.
-     *
-     * @param cssContent The CSS content string to hash
-     * @param baseUrl The base URL to hash
-     * @return A hash string representing the combined hash of content and baseUrl
-     */
-    private fun computeContentHash(cssContent: String, baseUrl: String): String {
-        val data = "$cssContent:$baseUrl".toByteArray()
-
-        var hash = 0x811C9DC5u // FNV offset basis
-        val prime = 0x01000193u // FNV prime
-
-        for (byte in data) {
-            hash = hash xor byte.toUInt() // XOR with the current byte
-            hash *= prime // Multiply by the FNV prime
-        }
-
-        return hash.toString(16)
-    }
 
     /**
      * Internal helper function that implements caching and request deduplication for CSS parsing.

@@ -18,7 +18,10 @@ Klyph is a Kotlin Multiplatform library that brings web-style font subsetting to
   deduplication
 - **Lazy Loading**: Font data is loaded on-demand as characters are rendered
 - **Compose-First**: Integrates with Compose Multiplatform using familiar scoped APIs
-- **Multiplatform Support**: Works on JavaScript and WebAssembly targets
+- **Multiplatform Support**: Works on Android, iOS, JVM, JavaScript, and WebAssembly targets
+
+**Android note:** ByteArray-backed fonts use `android.graphics.fonts.Font` on API 29+, and a temp-file fallback on
+older Android versions due to platform API limitations.
 
 ## Why Klyph?
 
@@ -40,14 +43,16 @@ Klyph solves this by:
 For now, publish to MavenLocal to use in your projects:
 
 ```bash
-./gradlew :klyph:publishToMavenLocal
+./gradlew :klyph-core:publishToMavenLocal :klyph-css:publishToMavenLocal
 ```
 
 Then add the dependency to your Compose Multiplatform project:
 
 ```kotlin
 commonMain.dependencies {
-    implementation("xyz.hyli:klyph:1.0.0")
+    implementation("xyz.hyli:klyph-core:1.0.0")
+    // CSS providers, parsing, and caching
+    implementation("xyz.hyli:klyph-css:1.0.0")
 }
 ```
 
@@ -375,8 +380,8 @@ fun CustomSubsetText() {
 suspend fun getFontCssDescription(url: String): List<FontFace>
 ```
 
-Fetches and parses CSS to extract `@font-face` rules. Automatically uses `CssCache` internally for caching and request
-deduplication.
+Fetches and parses CSS to extract `@font-face` rules. Automatically uses `CssCache` (from `klyph-css`) internally for
+caching and request deduplication.
 
 #### `FontSliceCache`
 
@@ -402,6 +407,9 @@ performed and all requests share the result.
 If 10 `SubsetText` instances all render "你好" and mount simultaneously, they will all request the same Chinese font
 slice. Without deduplication, this would trigger 10 identical network requests. With deduplication, only 1 request is
 made and all 10 instances share the result.
+
+**Platform note:** On Android, ByteArray-backed fonts are constructed via `android.graphics.fonts.Font` on API 29+,
+with a temp-file fallback on older API levels.
 
 #### `CssCache`
 
@@ -537,7 +545,7 @@ The sample demonstrates:
 
 ### Publish to MavenLocal
 
-1) Run `./gradlew :klyph:publishToMavenLocal`
+1) Run `./gradlew :klyph-core:publishToMavenLocal :klyph-css:publishToMavenLocal`
 2) Open `~/.m2/repository/xyz/hyli/`
 
 ### Publish to MavenCentral
@@ -545,7 +553,7 @@ The sample demonstrates:
 1) Create an account and a namespace on Sonatype:
    https://central.sonatype.org/register/central-portal/#create-an-account
 2) Add developer id, name, email and the project url to
-   `./klyph/build.gradle.kts`
+   `./klyph-core/build.gradle.kts` and `./klyph-css/build.gradle.kts`
 3) Generate a GPG key:
    https://getstream.io/blog/publishing-libraries-to-mavencentral-2021/#generating-a-gpg-key-pair
    ```
@@ -561,7 +569,8 @@ The sample demonstrates:
    mavenCentralUsername=[generated username]
    mavenCentralPassword=[generated password]
    ```
-5) Run `./gradlew :klyph:publishAndReleaseToMavenCentral --no-configuration-cache`
+5) Run
+   `./gradlew :klyph-core:publishAndReleaseToMavenCentral :klyph-css:publishAndReleaseToMavenCentral --no-configuration-cache`
 
 ## License
 

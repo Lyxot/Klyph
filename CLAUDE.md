@@ -4,21 +4,31 @@ This document contains technical architecture details for developers working on 
 
 ## File Structure
 
-Klyph is organized into focused, single-responsibility modules:
+Klyph is organized into focused, single-responsibility modules. The core library lives in `klyph-core`, and CSS parsing
+and caching live in `klyph-css`.
 
+**klyph-core**
 ```
 xyz.hyli.klyph/
 ├── SubsetText.kt                    # Primary API: SubsetText composable (scoped & standalone)
 ├── SubsetAnnotatedString.kt         # Low-level API: rememberSubsetAnnotatedString (scoped & standalone)
 ├── SubsetFontProvider.kt            # Scoped API: SubsetFontScope & SubsetFontProvider
-├── FontDescriptorProvider.kt        # Provider interface: FontDescriptorProvider & implementations
-├── CssParser.kt                     # CSS parsing: Direct CSS → FontDescriptor conversion
+├── FontDescriptorProvider.kt        # Provider interface: FontDescriptorProvider
 ├── FontDescriptor.kt                # Font metadata: Descriptor model and Font creation
 ├── UnicodeRange.kt                  # Character matching: Unicode range parsing and matching
-├── FontSliceCache.kt                # Caching: Font cache with deduplication & monitoring
+└──  FontSliceCache.kt                # Caching: Font cache with deduplication & monitoring
+```
+
+**klyph-css**
+
+```
+xyz.hyli.klyph.css/
+├── CssParser.kt                     # CSS parsing: Direct CSS → FontDescriptor conversion
 ├── CssCache.kt                      # Caching: CSS cache with deduplication & monitoring
 ├── UrlUtils.kt                      # Utilities: Relative URL resolution
-└── HttpClient.kt                    # Platform: HTTP client expect/actual declaration
+├── CssUrlFontDescriptorProvider.kt  # CSS URL provider implementation
+└── CssContentFontDescriptorProvider.kt # CSS content provider implementation
+├── HttpClient.kt                    # Platform: HTTP client expect/actual declaration
 ```
 
 ## Core Components
@@ -75,9 +85,9 @@ Provides the scoped API pattern similar to Row/Column:
 **Pattern:**
 
 ```kotlin
-class SubsetFontScope internal constructor(
-    internal val provider: FontDescriptorProvider,
-    internal val fontFamily: FontFamily?
+class SubsetFontScope(
+    val provider: FontDescriptorProvider,
+    val fontFamily: FontFamily?
 )
 
 @Composable
@@ -95,15 +105,16 @@ fun SubsetFontProvider(
 Interface for providing parsed font descriptors from various sources:
 
 - **FontDescriptorProvider**: Interface with `suspend fun getDescriptors(): List<FontDescriptor>`
-- **CssUrlFontDescriptorProvider**: Loads descriptors from CSS URL using CssCache
-- **CssContentFontDescriptorProvider**: Parses descriptors from CSS content string with hash-based caching via CssCache
+- **CssUrlFontDescriptorProvider** (klyph-css): Loads descriptors from CSS URL using CssCache
+- **CssContentFontDescriptorProvider** (klyph-css): Parses descriptors from CSS content string with hash-based caching
+  via CssCache
 - **StaticFontDescriptorProvider**: Provides a static list of pre-constructed descriptors (useful for bundled fonts)
 
 **Design:**
 
 - Interface abstraction allows multiple descriptor sources
-- CSS providers integrate with CssCache for efficient caching and request deduplication
-- CssContentFontDescriptorProvider uses hash-based cache keys (content hash + baseUrl hash) for efficient lookups
+- CSS providers (klyph-css) integrate with CssCache for efficient caching and request deduplication
+- CssContentFontDescriptorProvider (klyph-css) uses hash-based cache keys for efficient lookups
 - StaticFontDescriptorProvider useful for ResourceFontDescriptor instances loaded from Compose resources
 - Extensible: custom providers can load from databases, JSON, etc.
 
@@ -132,9 +143,9 @@ class CssContentFontDescriptorProvider(
 }
 ```
 
-### 5. CssParser (CSS Parsing)
+### 5. CssParser (CSS Parsing, klyph-css)
 
-**File**: `CssParser.kt`
+**File**: `CssParser.kt` (klyph-css)
 
 Parses CSS `@font-face` rules directly into UrlFontDescriptor objects:
 
@@ -166,7 +177,8 @@ Defines the core font descriptor interface and implementations:
 - **ResourceFontDescriptor**: Data class for loading fonts from Compose resources
     - Properties: `resource`, `fontFamily`, `weight`, `style`, `unicodeRanges`
     - Cache key: Hash of resource and metadata
-- **createFontFromData()**: Creates a Compose Font from ByteArray with proper metadata
+- **createFontFromData()**: Creates a Compose FontFamily from ByteArray with proper metadata (Android uses ByteBuffer on
+  API 29+ and a temp-file fallback below)
 
 **Design:**
 
@@ -234,9 +246,9 @@ suspend fun getOrLoad(descriptor: FontDescriptor): FontFamily = coroutineScope {
 If 10 `SubsetText` instances mount simultaneously and all need the same Chinese font slice, without deduplication: 10
 network requests. With deduplication: 1 network request, all share result.
 
-### 9. CssCache (CSS Caching)
+### 9. CssCache (CSS Caching, klyph-css)
 
-**File**: `CssCache.kt`
+**File**: `CssCache.kt` (klyph-css)
 
 Thread-safe global cache for parsed CSS files with request deduplication and monitoring:
 
@@ -266,9 +278,9 @@ Automatically resolves relative URLs in CSS against the CSS file's base URL duri
 - Tracks total CSS bandwidth for monitoring
 - Provides async clear for fire-and-forget cleanup
 
-### 10. UrlUtils (URL Resolution)
+### 10. UrlUtils (URL Resolution, klyph-css)
 
-**File**: `UrlUtils.kt`
+**File**: `UrlUtils.kt` (klyph-css)
 
 Resolves relative URLs in CSS files:
 
@@ -295,7 +307,7 @@ Platform-specific HTTP client declaration using Kotlin's expect/actual pattern:
 expect val httpClient: HttpClient
 ```
 
-Implementations provided in platform-specific source sets (jsMain, wasmJsMain).
+Implementations provided in platform-specific source sets (androidMain, iosMain, jvmMain, jsMain, wasmJsMain).
 
 ## Data Flow
 
@@ -303,11 +315,11 @@ Implementations provided in platform-specific source sets (jsMain, wasmJsMain).
 1. User calls SubsetText("Hello 世界!")
         ↓
 2. CSS Fetching & Caching
-   - CssCache.getOrLoad(cssUrl) checks cache
+   - CssCache.getOrLoad(cssUrl) (klyph-css) checks cache
    - If miss: httpClient fetches CSS
    - parseCssToObjects() parses @font-face rules
    - resolveUrl() resolves relative URLs
-   - Result cached in CssCache
+   - Result cached in CssCache (klyph-css)
         ↓
 3. Descriptor Parsing & Filtering
    - parseFontDescriptor() converts FontFace to FontDescriptor
@@ -366,7 +378,7 @@ ensuring correct selection.
 Separation of concerns:
 
 - **FontSliceCache**: Caches FontFamily instances created from font data (50-200 KB per slice)
-- **CssCache**: Caches parsed CSS metadata (List<FontFace>), lightweight structured data
+- **CssCache** (klyph-css): Caches parsed CSS metadata (List<FontFace>), lightweight structured data
 - **Different Lifetimes**: CSS rarely changes, fonts loaded on-demand
 - **Clear Responsibilities**: Font loading vs CSS parsing are distinct operations
 - **Independent Monitoring**: Separate size StateFlows for debugging
@@ -413,7 +425,7 @@ Character-level approach provides:
 - FontSliceCache: Holds FontFamily instances for each loaded font slice
 - Typical slice: 50-200 KB
 - Example session with 10 slices: ~1-2 MB total
-- CssCache: Holds parsed FontDescriptor lists (lightweight metadata)
+- CssCache (klyph-css): Holds parsed FontDescriptor lists (lightweight metadata)
 - Typical CSS: <10 KB in memory
 - Both caches track descriptors and bandwidth usage via StateFlows
 
@@ -432,8 +444,8 @@ Character-level approach provides:
 
 ## Known Limitations
 
-1. **Platform Support**: Currently JS/Wasm only (native platforms would need platform-specific HttpClient and Font
-   loading implementations)
+1. **Platform Support**: Android/iOS/JVM are supported, but Android ByteArray fonts use a temp-file fallback on API < 29
+   due to platform limitations.
 2. **Font Formats**: Depends on platform support (WOFF2 on web)
 3. **Complex Scripts**: No special handling for ligatures or kerning across font boundaries
 4. **Dynamic CSS**: No support for CSS variables, `@import` rules (planned), or nested @font-face rules
@@ -448,7 +460,7 @@ Character-level approach provides:
 1. Automatic CSS generation tool with unicode-range from font files
 2. Font subsetting tool to create subsets based on app text analysis
 3. Intelligent preload optimization by analyzing app text patterns
-4. Native platform support (iOS, Android, Desktop) with platform-specific implementations
+4. Expand native platform support with platform-specific optimizations (iOS, Android, Desktop)
 5. Advanced typography: ligatures, kerning, OpenType features
 6. Progressive font loading for large character sets with priority-based loading
 7. Font variant support (small-caps, numeric variants, etc.)

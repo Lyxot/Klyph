@@ -44,6 +44,8 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-include(":klyph")
+
+include(":klyph-core")
+include(":klyph-css")
 include(":sample")
 
