@@ -27,7 +27,7 @@ import android.graphics.fonts.Font as AndroidPlatformFont
 import android.graphics.fonts.FontFamily as AndroidPlatformFontFamily
 import android.graphics.fonts.FontStyle as AndroidPlatformFontStyle
 
-actual fun createFontFromData(
+internal actual fun createFontFromData(
     data: ByteArray,
     descriptor: FontDescriptor
 ): Font =

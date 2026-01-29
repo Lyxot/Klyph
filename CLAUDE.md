@@ -16,6 +16,7 @@ xyz.hyli.klyph/
 ├── FontDescriptorProvider.kt        # Provider interface: FontDescriptorProvider
 ├── FontDescriptor.kt                # Font metadata: Descriptor model and Font creation
 ├── Parser.kt                        # Parsing helpers: unicode-range, font-weight, font-style
+├── Hash.kt                          # Hash helpers used for cache keys (FNV-1a)
 ├── UnicodeRange.kt                  # Character matching: Unicode range parsing and matching
 ├── FontSliceCache.kt                # Caching: Font cache with deduplication & monitoring
 └── HttpClient.kt                    # Platform: HTTP client expect/actual declaration
@@ -100,7 +101,16 @@ Shared parsing utilities used across the core module and CSS providers:
 - `parseFontWeight()`
 - `parseFontStyle()`
 
-### 6. FontDescriptor (Font Metadata, klyph-core + klyph-css)
+### 6. Hash (Hash Helpers, klyph-core)
+
+**File**: `Hash.kt`
+
+Small helpers used for cache keys and identifiers:
+
+- `ByteArray.toFnv1aHash()`
+- `String.toFnv1aHashString()`
+
+### 7. FontDescriptor (Font Metadata, klyph-core + klyph-css)
 
 **File**: `FontDescriptor.kt` (core) and `CssFontDescriptor.kt` (klyph-css)
 
@@ -111,38 +121,38 @@ Core interface and implementations:
 - **UrlFontDescriptor** (klyph-css): loads fonts via HTTP
 - **createFontFamilyFromData()**: wraps platform Font into a FontFamily
 
-### 7. UnicodeRange (Character Matching, klyph-core)
+### 8. UnicodeRange (Character Matching, klyph-core)
 
 **File**: `UnicodeRange.kt`
 
 - `UnicodeRange` data class
 - `isCharInRanges()` helper
 
-### 8. FontSliceCache (Font Caching, klyph-core)
+### 9. FontSliceCache (Font Caching, klyph-core)
 
 **File**: `FontSliceCache.kt`
 
 Thread-safe cache of loaded FontFamily instances with request deduplication and monitoring.
 
-### 9. CssParser (CSS Parsing, klyph-css)
+### 10. CssParser (CSS Parsing, klyph-css)
 
 **File**: `CssParser.kt`
 
 Parses CSS `@font-face` rules into UrlFontDescriptor instances and resolves relative URLs.
 
-### 10. CssCache (CSS Caching, klyph-css)
+### 11. CssCache (CSS Caching, klyph-css)
 
 **File**: `CssCache.kt`
 
 Thread-safe cache for parsed CSS with request deduplication and bandwidth monitoring.
 
-### 11. UrlUtils (URL Resolution, klyph-css)
+### 12. UrlUtils (URL Resolution, klyph-css)
 
 **File**: `UrlUtils.kt`
 
 Resolves relative URLs in CSS files.
 
-### 12. HttpClient (Platform Abstraction, klyph-css)
+### 13. HttpClient (Platform Abstraction, klyph-css)
 
 **File**: `HttpClient.kt`
 

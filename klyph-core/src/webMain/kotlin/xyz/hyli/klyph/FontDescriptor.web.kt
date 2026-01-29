@@ -19,7 +19,7 @@ package xyz.hyli.klyph
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.platform.Font as PlatformFont
 
-actual fun createFontFromData(
+internal actual fun createFontFromData(
     data: ByteArray,
     descriptor: FontDescriptor
 ): Font =

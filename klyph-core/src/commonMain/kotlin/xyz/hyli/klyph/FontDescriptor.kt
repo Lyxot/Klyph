@@ -138,4 +138,4 @@ fun createFontFamilyFromData(data: ByteArray, descriptor: FontDescriptor): FontF
  * @param descriptor The parsed font descriptor with metadata.
  * @return A Compose Font object ready to be used in a FontFamily.
  */
-expect fun createFontFromData(data: ByteArray, descriptor: FontDescriptor): Font
+internal expect fun createFontFromData(data: ByteArray, descriptor: FontDescriptor): Font
