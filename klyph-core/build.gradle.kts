@@ -51,9 +51,5 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
-
-        webTest.dependencies {
-            implementation(project(":klyph-css"))
-        }
     }
 }

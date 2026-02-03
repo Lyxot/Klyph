@@ -37,5 +37,10 @@ kotlin {
             implementation(libs.ktor.client.js)
             implementation(project(":klyph-core"))
         }
+
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+            implementation(libs.kotlinx.coroutines.test)
+        }
     }
 }

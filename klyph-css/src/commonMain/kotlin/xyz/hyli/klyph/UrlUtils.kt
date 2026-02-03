@@ -27,7 +27,7 @@ import io.ktor.util.*
  * @param relativeUrl The URL to resolve (may be relative or absolute).
  * @return The resolved absolute URL.
  */
-fun resolveUrl(baseUrl: String, relativeUrl: String): String {
+internal fun resolveUrl(baseUrl: String, relativeUrl: String): String {
     // If the URL is already absolute (has protocol), return as-is
     if (relativeUrl.startsWith("http://") ||
         relativeUrl.startsWith("https://") ||

@@ -39,7 +39,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Run tests
-        run: ./gradlew :klyph-core:allTests --no-daemon --stacktrace
+        run: ./gradlew allTests --no-daemon --stacktrace
 
       - name: Upload test reports
         if: failure()
