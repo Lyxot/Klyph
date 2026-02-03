@@ -139,33 +139,34 @@ class UnicodeRangeTest {
 
     @Test
     fun testIsCharInRanges() {
-        val ranges = listOf(
+        val ranges = UnicodeRangeList(
             UnicodeRange(0x0, 0xFF),      // Basic Latin + Latin-1 Supplement
             UnicodeRange(0x4E00, 0x9FFF)  // CJK Unified Ideographs
         )
 
         // Test Basic Latin characters
-        assertTrue(isCharInRanges('A', ranges))
-        assertTrue(isCharInRanges('z', ranges))
-        assertTrue(isCharInRanges('0', ranges))
+        assertTrue(ranges.contains('A'))
+        assertTrue(ranges.contains('z'))
+        assertTrue(ranges.contains('0'))
 
         // Test CJK characters
-        assertTrue(isCharInRanges('你', ranges))
-        assertTrue(isCharInRanges('好', ranges))
-        assertTrue(isCharInRanges('世', ranges))
+        assertTrue(ranges.contains('你'))
+        assertTrue(ranges.contains('好'))
+        assertTrue(ranges.contains('世'))
 
         // Test Latin-1 Supplement characters (in range)
-        assertTrue(isCharInRanges('ñ', ranges)) // U+00F1 (within 0x0-0xFF)
+        assertTrue(ranges.contains('ñ')) // U+00F1 (within 0x0-0xFF)
 
         // Test characters not in any range
-        assertFalse(isCharInRanges('Ā', ranges)) // U+0100 (outside 0xFF)
-        assertFalse(isCharInRanges('Ə', ranges)) // U+018F (outside ranges)
+        assertFalse(ranges.contains('Ā')) // U+0100 (outside 0xFF)
+        assertFalse(ranges.contains('Ə')) // U+018F (outside ranges)
     }
 
     @Test
     fun testIsCharInRangesWithEmptyList() {
-        assertFalse(isCharInRanges('A', emptyList()))
-        assertFalse(isCharInRanges('你', emptyList()))
+        val ranges = UnicodeRangeList()
+        assertFalse(ranges.contains('A'))
+        assertFalse(ranges.contains('你'))
     }
 
     @Test
@@ -194,7 +195,7 @@ class UnicodeRangeTest {
         val ranges = parseUnicodeRange("U+3040-309F")
 
         assertEquals(1, ranges.size)
-        assertTrue(ranges[0].contains('あ'))
+        assertTrue(ranges.contains('あ'))
         assertTrue(ranges[0].contains('ん'))
         assertFalse(ranges[0].contains('ア')) // Katakana, different range
     }

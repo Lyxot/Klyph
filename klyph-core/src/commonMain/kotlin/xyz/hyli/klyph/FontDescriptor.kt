@@ -41,7 +41,7 @@ data class ResourceFontDescriptor(
     override val fontFamily: String,
     override val weight: FontWeight,
     override val style: FontStyle,
-    override val unicodeRanges: List<UnicodeRange>
+    override val unicodeRanges: UnicodeRangeList
 ) : FontDescriptor {
     /**
      * Convenience constructor that accepts CSS-style strings for weight, style, and unicode ranges.
@@ -102,7 +102,7 @@ interface FontDescriptor {
     val fontFamily: String
     val weight: FontWeight
     val style: FontStyle
-    val unicodeRanges: List<UnicodeRange>
+    val unicodeRanges: UnicodeRangeList
 
     /**
      * Loads the font data and creates a Compose FontFamily instance.

@@ -18,6 +18,7 @@ package xyz.hyli.klyph
 
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.util.fastMap
 
 /**
  * Parses a CSS unicode-range descriptor value into a list of UnicodeRange objects.
@@ -31,15 +32,15 @@ import androidx.compose.ui.text.font.FontWeight
  * @param unicodeRangeStr The unicode-range value from CSS (e.g., "U+0-FF, U+4E00-9FFF").
  * @return A list of [UnicodeRange] objects, or an empty list if parsing fails.
  */
-fun parseUnicodeRange(unicodeRangeStr: String?): List<UnicodeRange> {
+fun parseUnicodeRange(unicodeRangeStr: String?): UnicodeRangeList {
     if (unicodeRangeStr.isNullOrBlank()) {
-        return emptyList()
+        return UnicodeRangeList()
     }
 
     val ranges = mutableListOf<UnicodeRange>()
 
     // Split by comma to handle multiple ranges
-    val parts = unicodeRangeStr.split(',').map { it.trim() }
+    val parts = unicodeRangeStr.split(',').fastMap { it.trim() }
 
     for (part in parts) {
         // Remove "U+" or "u+" prefix
@@ -53,7 +54,7 @@ fun parseUnicodeRange(unicodeRangeStr: String?): List<UnicodeRange> {
             }
         } else if (cleaned.contains('-')) {
             // Range: "0-FF" or "4E00-9FFF"
-            val rangeParts = cleaned.split('-').map { it.trim() }
+            val rangeParts = cleaned.split('-').fastMap { it.trim() }
             if (rangeParts.size == 2) {
                 val start = rangeParts[0].toIntOrNull(16)
                 val end = rangeParts[1].toIntOrNull(16)
@@ -70,7 +71,7 @@ fun parseUnicodeRange(unicodeRangeStr: String?): List<UnicodeRange> {
         }
     }
 
-    return ranges
+    return UnicodeRangeList(ranges)
 }
 
 /**

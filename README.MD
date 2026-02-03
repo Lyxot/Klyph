@@ -225,7 +225,7 @@ val descriptor = ResourceFontDescriptor(
     fontFamily = "MyFont",
     weight = FontWeight.Normal,
     style = FontStyle.Normal,
-    unicodeRanges = emptyList()
+   unicodeRanges = UnicodeRangeList()
 )
 val provider = StaticFontDescriptorProvider(descriptor)
 ```

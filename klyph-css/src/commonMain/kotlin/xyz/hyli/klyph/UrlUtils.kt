@@ -16,6 +16,9 @@
 
 package xyz.hyli.klyph
 
+import androidx.compose.ui.util.fastFilter
+import androidx.compose.ui.util.fastJoinToString
+
 /**
  * Resolves a potentially relative URL against a base URL.
  *
@@ -90,8 +93,8 @@ private fun parseUrl(url: String): UrlParts {
  */
 private fun resolveRelativePath(basePath: String, relativePath: String): String {
     // Split paths into segments
-    val baseSegments = basePath.split('/').filter { it.isNotEmpty() }.toMutableList()
-    val relativeSegments = relativePath.split('/').filter { it.isNotEmpty() }
+    val baseSegments = basePath.split('/').fastFilter { it.isNotEmpty() }.toMutableList()
+    val relativeSegments = relativePath.split('/').fastFilter { it.isNotEmpty() }
 
     for (segment in relativeSegments) {
         when (segment) {
@@ -101,7 +104,7 @@ private fun resolveRelativePath(basePath: String, relativePath: String): String 
             ".." -> {
                 // Parent directory, go up one level
                 if (baseSegments.isNotEmpty()) {
-                    baseSegments.removeAt(baseSegments.lastIndex)
+                    baseSegments.removeLast()
                 }
             }
             else -> {
@@ -111,7 +114,7 @@ private fun resolveRelativePath(basePath: String, relativePath: String): String 
         }
     }
 
-    return "/" + baseSegments.joinToString("/")
+    return "/" + baseSegments.fastJoinToString("/")
 }
 
 /**

@@ -230,7 +230,7 @@ fun App() {
                         Text(
                             text = "• ${descriptor.fontFamily} | Weight: ${descriptor.weight.weight} | Style: ${descriptor.style} | Unicode ranges: ${
                                 if (descriptor.unicodeRanges.isEmpty()) "all"
-                                else descriptor.unicodeRanges.joinToString(", ")
+                                else descriptor.unicodeRanges
                             }",
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,

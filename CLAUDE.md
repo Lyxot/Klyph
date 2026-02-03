@@ -97,7 +97,7 @@ Interface for providing parsed font descriptors from various sources:
 
 Shared parsing utilities used across the core module and CSS providers:
 
-- `parseUnicodeRange()`
+- `parseUnicodeRange()` (returns `UnicodeRangeList`)
 - `parseFontWeight()`
 - `parseFontStyle()`
 
@@ -116,7 +116,7 @@ Small helpers used for cache keys and identifiers:
 
 Core interface and implementations:
 
-- **FontDescriptor**: `cacheKey`, `fontFamily`, `weight`, `style`, `unicodeRanges`, `getFontFamily()`
+- **FontDescriptor**: `cacheKey`, `fontFamily`, `weight`, `style`, `unicodeRanges: UnicodeRangeList`, `getFontFamily()`
 - **ResourceFontDescriptor** (core): loads bundled Compose resources; includes CSS-string convenience constructor
 - **UrlFontDescriptor** (klyph-css): loads fonts via HTTP
 - **createFontFamilyFromData()**: wraps platform Font into a FontFamily
@@ -126,7 +126,7 @@ Core interface and implementations:
 **File**: `UnicodeRange.kt`
 
 - `UnicodeRange` data class
-- `isCharInRanges()` helper
+- `UnicodeRangeList` wrapper with `contains(char|codePoint)`
 
 ### 9. FontSliceCache (Font Caching, klyph-core)
 

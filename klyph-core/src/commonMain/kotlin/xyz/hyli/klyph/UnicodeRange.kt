@@ -16,6 +16,9 @@
 
 package xyz.hyli.klyph
 
+import androidx.compose.ui.util.fastAny
+import androidx.compose.ui.util.fastJoinToString
+
 /**
  * Represents a Unicode code point range (e.g., U+4E00-9FFF).
  *
@@ -46,13 +49,33 @@ data class UnicodeRange(
     }
 }
 
-/**
- * Checks if a character is covered by any of the given Unicode ranges.
- *
- * @param char The character to check.
- * @param ranges The list of Unicode ranges to check against.
- * @return True if the character falls within at least one range, false otherwise.
- */
-fun isCharInRanges(char: Char, ranges: List<UnicodeRange>): Boolean {
-    return ranges.any { it.contains(char) }
+data class UnicodeRangeList(
+    private val ranges: List<UnicodeRange>
+) : List<UnicodeRange> by ranges {
+    constructor(vararg ranges: UnicodeRange) : this(ranges.asList())
+
+    /**
+     * Checks if a character is covered by any of the given Unicode ranges.
+     *
+     * @param char The character to check.
+     * @param ranges The list of Unicode ranges to check against.
+     * @return True if the character falls within at least one range, false otherwise.
+     */
+    fun contains(char: Char): Boolean {
+        return ranges.fastAny { it.contains(char) }
+    }
+
+    /**
+     * Checks if a code point is covered by any of the given Unicode ranges.
+     *
+     * @param codePoint The code point to check.
+     * @return True if the code point falls within at least one range, false otherwise.
+     */
+    fun contains(codePoint: Int): Boolean {
+        return ranges.fastAny { it.contains(codePoint) }
+    }
+
+    override fun toString(): String {
+        return ranges.fastJoinToString(", ")
+    }
 }

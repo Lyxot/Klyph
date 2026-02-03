@@ -61,7 +61,7 @@ class StaticFontDescriptorProvider(
 ) : FontDescriptorProvider {
     constructor(
         vararg descriptors: FontDescriptor
-    ) : this(descriptors.toList())
+    ) : this(descriptors.asList())
 
     override suspend fun getDescriptors(): List<FontDescriptor> = descriptors
 }

@@ -40,7 +40,7 @@ data class UrlFontDescriptor(
     override val fontFamily: String,
     override val weight: FontWeight,
     override val style: FontStyle,
-    override val unicodeRanges: List<UnicodeRange>
+    override val unicodeRanges: UnicodeRangeList
 ) : FontDescriptor {
     override val cacheKey: String
         get() = "url:$url"

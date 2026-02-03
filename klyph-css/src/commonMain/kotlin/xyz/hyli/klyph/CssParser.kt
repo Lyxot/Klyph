@@ -16,6 +16,14 @@
 
 package xyz.hyli.klyph
 
+import androidx.compose.ui.util.fastFilter
+import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.util.fastMapNotNull
+
+private val COMMENTS_REGEX = Regex("""/\*[\s\S]*?\*/""")
+private val FONT_FACE_REGEX = Regex("""@font-face\s*\{([^{}]+)\}""")
+private val URL_REGEX = Regex("""url\((.*?)\)""")
+
 /**
  * Parses a CSS string to extract @font-face rules and convert them into FontDescriptor objects.
  *
@@ -31,20 +39,19 @@ fun parseCssToDescriptors(css: String, baseUrl: String? = null): List<UrlFontDes
     // https://npm.webcache.cn/misans-webfont/misans-style.css
 
     // Strip all /* ... */ comments from the entire CSS string
-    val cssNoComments = css.replace(Regex("""/\*[\s\S]*?\*/"""), "")
+    val cssNoComments = css.replace(COMMENTS_REGEX, "")
 
-    val fontFaceRegex = """@font-face\s*\{([^{}]+)\}""".toRegex()
-    val fontFaceBlocks = fontFaceRegex.findAll(cssNoComments)
+    val fontFaceBlocks = FONT_FACE_REGEX.findAll(cssNoComments)
     val descriptors = mutableListOf<UrlFontDescriptor>()
 
     for (block in fontFaceBlocks) {
         val content = block.groupValues[1].trim()
 
         // Split descriptors by semicolon
-        val cssDescriptors = content.split(';').map { it.trim() }.filter { it.isNotEmpty() }
+        val cssDescriptors = content.split(';').fastMap { it.trim() }.fastFilter { it.isNotEmpty() }
 
         // Create a map of descriptor key-value pairs
-        val descriptorMap = cssDescriptors.mapNotNull {
+        val descriptorMap = cssDescriptors.fastMapNotNull {
             val parts = it.split(':', limit = 2)
             if (parts.size == 2) parts[0].trim() to parts[1].trim() else null
         }.toMap()
@@ -106,8 +113,7 @@ fun parseCssToDescriptors(css: String, baseUrl: String? = null): List<UrlFontDes
  */
 private fun extractUrlFromSrc(srcValue: String): String? {
     // Match url(...) pattern, using non-greedy match
-    val urlRegex = """url\((.*?)\)""".toRegex()
-    val match = urlRegex.find(srcValue) ?: return null
+    val match = URL_REGEX.find(srcValue) ?: return null
 
     // Extract URL and remove quotes if present
     return match.groupValues[1]

@@ -24,6 +24,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.util.fastFilter
+import androidx.compose.ui.util.fastFirstOrNull
+import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastMapNotNull
 import kotlinx.coroutines.launch
 
 /**
@@ -136,13 +140,13 @@ fun rememberSubsetAnnotatedString(
 ): AnnotatedString {
     // Filter descriptors by requested weight and style
     val filteredDescriptors = remember(descriptors, requestedWeight, requestedStyle) {
-        descriptors.filter { descriptor ->
+        descriptors.fastFilter { descriptor ->
             isWeightMatching(requestedWeight, descriptor.weight) &&
                     isStyleMatching(requestedStyle, descriptor.style)
         }.let {
             if (it.isEmpty() && requestedStyle == FontStyle.Italic) {
                 // Fallback: ignore style if no matching italic fonts found
-                descriptors.filter { descriptor ->
+                descriptors.fastFilter { descriptor ->
                     isWeightMatching(requestedWeight, descriptor.weight)
                 }
             } else {
@@ -179,10 +183,10 @@ fun rememberSubsetAnnotatedString(
     }
 
     LaunchedEffect(textIntervals) {
-        val uniqueDescriptors = textIntervals.mapNotNull { it.descriptor }.toSet()
-        val missingDescriptors = uniqueDescriptors.filter { it !in descriptorToFontFamily }
+        val uniqueDescriptors = textIntervals.fastMapNotNull { it.descriptor }.distinct()
+        val missingDescriptors = uniqueDescriptors.fastFilter { it !in descriptorToFontFamily }
 
-        missingDescriptors.forEach { descriptor ->
+        missingDescriptors.fastForEach { descriptor ->
             launch {
                 try {
                     val fontFamily = FontSliceCache.getOrLoad(descriptor)
@@ -238,11 +242,11 @@ private fun findDescriptor(
     descriptors: List<FontDescriptor>,
     hint: FontDescriptor? = null
 ): FontDescriptor? {
-    if (hint != null && (hint.unicodeRanges.isEmpty() || isCharInRanges(char, hint.unicodeRanges))) {
+    if (hint != null && (hint.unicodeRanges.isEmpty() || hint.unicodeRanges.contains(char))) {
         return hint
     }
-    return descriptors.firstOrNull { descriptor ->
-        descriptor.unicodeRanges.isEmpty() || isCharInRanges(char, descriptor.unicodeRanges)
+    return descriptors.fastFirstOrNull { descriptor ->
+        descriptor.unicodeRanges.isEmpty() || descriptor.unicodeRanges.contains(char)
     }
 }
 

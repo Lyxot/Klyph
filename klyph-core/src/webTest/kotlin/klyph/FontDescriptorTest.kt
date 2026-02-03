@@ -31,7 +31,7 @@ class FontDescriptorTest {
             fontFamily = "Test Font",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         assertEquals("https://example.com/font.woff2", descriptor.url)
@@ -43,7 +43,7 @@ class FontDescriptorTest {
 
     @Test
     fun testFontDescriptorWithUnicodeRanges() {
-        val ranges = listOf(
+        val ranges = UnicodeRangeList(
             UnicodeRange(0x0000, 0x00FF),
             UnicodeRange(0x4E00, 0x9FFF)
         )
@@ -68,7 +68,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val descriptor2 = UrlFontDescriptor(
@@ -76,7 +76,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         assertEquals(descriptor1, descriptor2)
@@ -89,7 +89,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val descriptor2 = UrlFontDescriptor(
@@ -97,7 +97,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         assertNotEquals(descriptor1, descriptor2)
@@ -110,7 +110,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val descriptorBold = UrlFontDescriptor(
@@ -118,7 +118,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Bold,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         assertNotEquals(descriptorNormal, descriptorBold)
@@ -131,7 +131,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val descriptorItalic = UrlFontDescriptor(
@@ -139,7 +139,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Italic,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         assertNotEquals(descriptorNormal, descriptorItalic)
@@ -152,7 +152,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val descriptor2 = UrlFontDescriptor(
@@ -160,7 +160,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         // Equal objects should have equal hash codes
@@ -174,7 +174,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val copy = original.copy(weight = FontWeight.Bold)
@@ -192,7 +192,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight(350),
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         assertEquals(350, descriptor.weight.weight)
@@ -205,7 +205,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val descriptor2 = UrlFontDescriptor(
@@ -213,7 +213,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         // Create dummy font data
@@ -233,7 +233,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Bold,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val dummyData = ByteArray(100) { it.toByte() }
@@ -249,7 +249,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Italic,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val dummyData = ByteArray(100) { it.toByte() }
@@ -265,7 +265,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val descriptor2 = UrlFontDescriptor(
@@ -273,7 +273,7 @@ class FontDescriptorTest {
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = emptyList()
+            unicodeRanges = UnicodeRangeList()
         )
 
         val map = mutableMapOf<FontDescriptor, String>()
@@ -288,12 +288,13 @@ class FontDescriptorTest {
     @Test
     fun testFontDescriptorListReference() {
         val ranges = mutableListOf(UnicodeRange(0x0, 0xFF))
+        val rangeList = UnicodeRangeList(ranges)
         val descriptor = UrlFontDescriptor(
             url = "font.woff2",
             fontFamily = "Test",
             weight = FontWeight.Normal,
             style = FontStyle.Normal,
-            unicodeRanges = ranges
+            unicodeRanges = rangeList
         )
 
         // Note: FontDescriptor holds a reference to the original list
