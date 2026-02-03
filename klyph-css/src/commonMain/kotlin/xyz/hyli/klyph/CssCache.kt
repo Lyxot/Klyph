@@ -73,10 +73,16 @@ object CssCache {
      */
     suspend fun getOrLoad(url: String): List<FontDescriptor> =
         getOrLoad("url:$url") {
-            val res = httpClient.get(url)
-            val body = res.bodyAsText()
-            _receivedBytes.value += res.contentLength() ?: res.bodyAsBytes().size.toLong()
-            parseCssToDescriptors(body, baseUrl = url)
+            if (url.startsWith("data:", ignoreCase = true)) {
+                val data = decodeDataUrlToBytes(url)
+                _receivedBytes.value += data.size.toLong()
+                parseCssToDescriptors(data.decodeToString(), baseUrl = "")
+            } else {
+                val res = httpClient.get(url)
+                val body = res.bodyAsText()
+                _receivedBytes.value += res.contentLength() ?: res.bodyAsBytes().size.toLong()
+                parseCssToDescriptors(body, baseUrl = url)
+            }
         }
 
     /**
