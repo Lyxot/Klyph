@@ -53,7 +53,7 @@ fun parseCssToDescriptors(css: String, baseUrl: String? = null): List<UrlFontDes
         // Create a map of descriptor key-value pairs
         val descriptorMap = cssDescriptors.fastMapNotNull {
             val parts = it.split(':', limit = 2)
-            if (parts.size == 2) parts[0].trim() to parts[1].trim() else null
+            if (parts.size == 2) parts[0].trim().lowercase() to parts[1].trim() else null
         }.toMap()
 
         fun getValue(name: String): String? {

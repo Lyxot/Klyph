@@ -474,9 +474,10 @@ class CssParserTest {
 
         val descriptors = parseCssToDescriptors(css)
 
-        // CSS properties should be case-insensitive, but current implementation is case-sensitive
-        // This test documents current behavior - may need fixing
-        assertEquals(0, descriptors.size) // Currently fails because properties are lowercase
+        assertEquals(1, descriptors.size)
+        assertEquals("Test", descriptors[0].fontFamily)
+        assertEquals(FontWeight.Bold, descriptors[0].weight)
+        assertEquals(FontStyle.Italic, descriptors[0].style)
     }
 
     @Test
