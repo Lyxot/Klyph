@@ -44,7 +44,7 @@ import kotlinx.coroutines.awaitAll
  *
  * Example:
  * ```kotlin
- * SubsetFontProvider(provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css")) {
+ * SubsetFontProvider(provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css")) {
  *     val annotatedString = rememberSubsetAnnotatedString(
  *         text = "Hello 世界",
  *         requestedWeight = FontWeight.Normal,

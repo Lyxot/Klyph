@@ -29,7 +29,7 @@ import androidx.compose.ui.text.font.FontFamily
  *
  * Example:
  * ```
- * SubsetFontProvider(provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css")) {
+ * SubsetFontProvider(provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css")) {
  *     // 'this' is SubsetFontScope
  *     SubsetText("Hello 世界") // No provider needed!
  *     SubsetText("More text") // Reuses the same provider
@@ -58,7 +58,7 @@ class SubsetFontScope internal constructor(
  *
  * Example:
  * ```
- * SubsetFontProvider(provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css")) {
+ * SubsetFontProvider(provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css")) {
  *     SubsetText(
  *         text = "你好世界 Hello World",
  *         fontSize = 20.sp

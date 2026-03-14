@@ -48,7 +48,7 @@ import androidx.compose.ui.unit.TextUnit
  *
  * Example:
  * ```
- * SubsetFontProvider(provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css")) {
+ * SubsetFontProvider(provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css")) {
  *     SubsetText(
  *         text = "Hello 世界!",
  *         fontSize = 20.sp,
@@ -134,7 +134,7 @@ fun SubsetFontScope.SubsetText(
  * ```
  * SubsetText(
  *     text = "Hello 世界!",
- *     provider = FontDescriptorProvider.fromCssUrl("https://example.com/fonts.css"),
+ *     provider = CssUrlFontDescriptorProvider("https://example.com/fonts.css"),
  *     fontSize = 20.sp
  * )
  * ```
