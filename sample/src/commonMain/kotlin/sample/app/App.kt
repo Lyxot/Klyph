@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontStyle
@@ -40,6 +41,7 @@ import xyz.hyli.klyph.*
 
 @Composable
 fun App() {
+    val scope = rememberCoroutineScope()
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -289,8 +291,8 @@ fun App() {
                 .align(Alignment.TopEnd)
                 .padding(16.dp),
             onClick = {
-                CssCache.clearAsync()
-                FontSliceCache.clearAsync()
+                CssCache.clearAsync(scope)
+                FontSliceCache.clearAsync(scope)
             }
         ) {
             Text(

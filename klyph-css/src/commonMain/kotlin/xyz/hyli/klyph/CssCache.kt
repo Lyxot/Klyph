@@ -187,14 +187,10 @@ object CssCache {
     }
 
     /**
-     * Calls [clear] in a fire-and-forget way, without suspending.
+     * Calls [clear] asynchronously within the given [scope].
      *
-     * Launches a coroutine on the default dispatcher to clear the cache asynchronously.
+     * @param scope The coroutine scope to launch the clear operation in.
+     * @return The launched [Job], which can be joined if needed.
      */
-    @OptIn(DelicateCoroutinesApi::class)
-    fun clearAsync() {
-        GlobalScope.launch {
-            clear()
-        }
-    }
+    fun clearAsync(scope: CoroutineScope): Job = scope.launch { clear() }
 }
