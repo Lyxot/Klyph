@@ -153,8 +153,8 @@ object CssCache {
         }
 
         deferred.await().also {
-            _descriptors.value = _descriptors.value.toMutableMap().apply {
-                put(cacheKey, it)
+            mutex.withLock {
+                _descriptors.value = _descriptors.value + (cacheKey to it)
             }
         }
     }
