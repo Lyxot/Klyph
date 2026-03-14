@@ -76,7 +76,7 @@ fun SubsetFontScope.rememberSubsetAnnotatedString(
         try {
             value = provider.getDescriptors()
         } catch (e: Exception) {
-            println("ERROR: Failed to load descriptors from provider: ${e.message}")
+            KlyphLogger.error("SubsetAnnotatedString", "Failed to load descriptors from provider", e)
             value = emptyList()
         }
     }
@@ -192,7 +192,7 @@ fun rememberSubsetAnnotatedString(
                 try {
                     descriptor to FontSliceCache.getOrLoad(descriptor)
                 } catch (e: Exception) {
-                    println("ERROR: Failed to load font from ${descriptor.cacheKey}: ${e.message}")
+                    KlyphLogger.error("SubsetAnnotatedString", "Failed to load font: ${descriptor.cacheKey}", e)
                     null
                 }
             }

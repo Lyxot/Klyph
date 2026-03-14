@@ -184,7 +184,7 @@ fun SubsetText(
         try {
             value = provider.getDescriptors()
         } catch (e: Exception) {
-            println("ERROR: Failed to load descriptors from provider: ${e.message}")
+            KlyphLogger.error("SubsetText", "Failed to load descriptors from provider", e)
             value = emptyList()
         }
     }

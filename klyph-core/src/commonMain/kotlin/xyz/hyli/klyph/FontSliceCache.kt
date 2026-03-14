@@ -117,7 +117,7 @@ object FontSliceCache {
             try {
                 getOrLoad(descriptor)
             } catch (e: Exception) {
-                println("ERROR: Failed to preload font from ${descriptor.cacheKey}: ${e.message}")
+                KlyphLogger.error("FontSliceCache", "Failed to preload font: ${descriptor.cacheKey}", e)
             }
         }
     }
