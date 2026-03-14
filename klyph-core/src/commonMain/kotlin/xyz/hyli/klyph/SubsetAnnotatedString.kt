@@ -26,9 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.util.fastFilter
 import androidx.compose.ui.util.fastFirstOrNull
-import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastMap
 import androidx.compose.ui.util.fastMapNotNull
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 
 /**
  * Scoped version of [rememberSubsetAnnotatedString] that automatically fetches font descriptors
@@ -186,15 +187,19 @@ fun rememberSubsetAnnotatedString(
         val uniqueDescriptors = textIntervals.fastMapNotNull { it.descriptor }.distinct()
         val missingDescriptors = uniqueDescriptors.fastFilter { it !in descriptorToFontFamily }
 
-        missingDescriptors.fastForEach { descriptor ->
-            launch {
+        val loaded = missingDescriptors.fastMap { descriptor ->
+            async {
                 try {
-                    val fontFamily = FontSliceCache.getOrLoad(descriptor)
-                    descriptorToFontFamily += (descriptor to fontFamily)
+                    descriptor to FontSliceCache.getOrLoad(descriptor)
                 } catch (e: Exception) {
                     println("ERROR: Failed to load font from ${descriptor.cacheKey}: ${e.message}")
+                    null
                 }
             }
+        }.awaitAll().filterNotNull()
+
+        if (loaded.isNotEmpty()) {
+            descriptorToFontFamily = descriptorToFontFamily + loaded
         }
     }
 
