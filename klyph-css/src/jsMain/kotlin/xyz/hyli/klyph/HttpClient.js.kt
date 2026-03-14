@@ -18,5 +18,11 @@ package xyz.hyli.klyph
 
 import io.ktor.client.*
 import io.ktor.client.engine.js.*
+import io.ktor.client.plugins.*
 
-actual val httpClient = HttpClient(Js)
+actual val httpClient = HttpClient(Js) {
+    install(HttpTimeout) {
+        requestTimeoutMillis = 30_000
+        connectTimeoutMillis = 10_000
+    }
+}
