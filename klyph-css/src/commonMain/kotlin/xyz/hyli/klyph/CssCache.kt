@@ -42,12 +42,22 @@ import xyz.hyli.klyph.CssCache.getOrLoad
  * **Thread Safety:**
  * All operations are protected by a mutex to ensure thread-safe access
  * to the cache across multiple coroutines.
+ *
+ * **Cache Eviction:**
+ * The cache has a configurable maximum size ([maxSize]). When the limit is
+ * reached, the oldest entries are evicted to make room for new ones.
  */
 object CssCache {
-    private val cache = mutableMapOf<String, Deferred<List<FontDescriptor>>>()
+    private val cache = linkedMapOf<String, Deferred<List<FontDescriptor>>>()
     private val mutex = Mutex()
     private val _descriptors = MutableStateFlow<Map<String, List<FontDescriptor>>>(emptyMap())
     private val _receivedBytes = MutableStateFlow(0L)
+
+    /**
+     * Maximum number of CSS entries to keep in cache. Oldest entries are
+     * evicted when this limit is exceeded. Default is 50.
+     */
+    var maxSize: Int = 50
 
     /**
      * The list of all parsed font descriptors currently in the cache.
@@ -111,7 +121,7 @@ object CssCache {
     /**
      * Internal helper function that implements caching and request deduplication for CSS parsing.
      *
-     * This function is the core caching mechanism used by both [getOrLoad] and [getOrLoad].
+     * This function is the core caching mechanism used by both [getOrLoad] variants.
      * It ensures that:
      * - Multiple concurrent requests for the same cache key share a single parse operation
      * - Results are cached for subsequent requests
@@ -137,6 +147,13 @@ object CssCache {
         val deferred = mutex.withLock {
             // Check if already in cache or being parsed
             cache[cacheKey]?.let { return@withLock it }
+
+            // Evict oldest entries if cache is full
+            while (cache.size >= maxSize) {
+                val oldest = cache.keys.first()
+                cache.remove(oldest)
+                _descriptors.value = _descriptors.value - oldest
+            }
 
             // Not in cache, create deferred and start parse
             async {

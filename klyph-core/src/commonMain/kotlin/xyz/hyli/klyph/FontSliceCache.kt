@@ -40,6 +40,10 @@ import xyz.hyli.klyph.FontSliceCache.clear
  * All operations are protected by a mutex to ensure thread-safe access
  * to the cache across multiple coroutines.
  *
+ * **Cache Eviction:**
+ * The cache has a configurable maximum size ([maxSize]). When the limit is
+ * reached, the oldest entries are evicted to make room for new ones.
+ *
  * **Example:**
  * If 10 SubsetText instances all render "你好" and mount at the same time,
  * they will all request the same Chinese font slice. Without deduplication,
@@ -47,10 +51,16 @@ import xyz.hyli.klyph.FontSliceCache.clear
  * only 1 request is made and all 10 instances share the result.
  */
 object FontSliceCache {
-    private val cache = mutableMapOf<String, Deferred<FontFamily>>()
+    private val cache = linkedMapOf<String, Deferred<FontFamily>>()
     private val mutex = Mutex()
     private val _descriptors = MutableStateFlow<Map<String, FontDescriptor>>(emptyMap())
     private val _receivedBytes = MutableStateFlow(0L)
+
+    /**
+     * Maximum number of font slices to keep in cache. Oldest entries are
+     * evicted when this limit is exceeded. Default is 200.
+     */
+    var maxSize: Int = 200
 
     /**
      * The list of all parsed font descriptors currently in the cache.
@@ -80,6 +90,13 @@ object FontSliceCache {
         val deferred = mutex.withLock {
             // Check if already in cache or being fetched
             cache[cacheKey]?.let { return@withLock it }
+
+            // Evict oldest entries if cache is full
+            while (cache.size >= maxSize) {
+                val oldest = cache.keys.first()
+                cache.remove(oldest)
+                _descriptors.value = _descriptors.value - oldest
+            }
 
             // Not in cache, create deferred and start fetch
             async {
