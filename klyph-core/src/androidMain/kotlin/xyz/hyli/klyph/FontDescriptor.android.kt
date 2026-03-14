@@ -80,26 +80,34 @@ private class AndroidByteBufferFont(
     @RequiresApi(26)
     fun buildTypefaceFromTempFile(context: Context): Typeface {
         val tempFile = createTempFile(context)
-        return Typeface.Builder(tempFile)
-            .setWeight(weight.weight)
-            .setItalic(style == FontStyle.Italic)
-            .build()
+        return try {
+            Typeface.Builder(tempFile)
+                .setWeight(weight.weight)
+                .setItalic(style == FontStyle.Italic)
+                .build()
+        } finally {
+            tempFile.delete()
+        }
     }
 
     @RequiresApi(4)
     fun createTypefaceFromTempFile(context: Context): Typeface {
         val tempFile = createTempFile(context)
-        val base = Typeface.createFromFile(tempFile)
-        val wantsBold = weight.weight >= 600
-        val wantsItalic = style == FontStyle.Italic
-        val styleInt =
-            when {
-                wantsBold && wantsItalic -> Typeface.BOLD_ITALIC
-                wantsBold -> Typeface.BOLD
-                wantsItalic -> Typeface.ITALIC
-                else -> Typeface.NORMAL
-            }
-        return Typeface.create(base, styleInt)
+        return try {
+            val base = Typeface.createFromFile(tempFile)
+            val wantsBold = weight.weight >= 600
+            val wantsItalic = style == FontStyle.Italic
+            val styleInt =
+                when {
+                    wantsBold && wantsItalic -> Typeface.BOLD_ITALIC
+                    wantsBold -> Typeface.BOLD
+                    wantsItalic -> Typeface.ITALIC
+                    else -> Typeface.NORMAL
+                }
+            Typeface.create(base, styleInt)
+        } finally {
+            tempFile.delete()
+        }
     }
 
     override fun toString(): String =
