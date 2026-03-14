@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
+import io.ktor.http.*
 
 /**
  * Font descriptor for loading fonts from remote URLs.
@@ -51,6 +52,9 @@ data class UrlFontDescriptor(
             decodeDataUrlToBytes(url)
         } else {
             val res = httpClient.get(url)
+            if (!res.status.isSuccess()) {
+                throw IllegalStateException("HTTP ${res.status.value} fetching font: $url")
+            }
             res.bodyAsBytes()
         }.also {
             onBytesLoaded(it.size.toLong())

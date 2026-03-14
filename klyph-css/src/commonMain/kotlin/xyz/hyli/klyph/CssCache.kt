@@ -79,8 +79,11 @@ object CssCache {
                 parseCssToDescriptors(data.decodeToString(), baseUrl = "")
             } else {
                 val res = httpClient.get(url)
+                if (!res.status.isSuccess()) {
+                    throw IllegalStateException("HTTP ${res.status.value} fetching CSS: $url")
+                }
                 val body = res.bodyAsText()
-                _receivedBytes.value += res.contentLength() ?: res.bodyAsBytes().size.toLong()
+                _receivedBytes.value += res.contentLength() ?: body.encodeToByteArray().size.toLong()
                 parseCssToDescriptors(body, baseUrl = url)
             }
         }
